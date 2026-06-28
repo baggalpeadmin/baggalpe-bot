@@ -13,8 +13,22 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const { initDB } = require('./db/schema');
+const fs = require('fs');
+const { initDB, getMerchantsByCity } = require('./db/schema');
 const { handleMessage } = require('./conversation/router');
+
+// Auto-seed database on first run if no data exists
+initDB();
+try {
+  const merchants = getMerchantsByCity('Jaipur');
+  if (!merchants || merchants.length === 0) {
+    console.log('[Server] No merchants found — auto-seeding database...');
+    require('./db/seed');
+  }
+} catch (e) {
+  console.log('[Server] Auto-seeding database...');
+  require('./db/seed');
+}
 
 const app = express();
 app.use(express.json());
