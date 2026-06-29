@@ -11,26 +11,20 @@
  */
 
 const fs = require('fs');
-const envPath = fs.existsSync('.env') ? '.env' : '.env.example';
-require('dotenv').config({ path: envPath });
-console.log(`[Config] Loaded environment from: ${envPath}`);
+const hasEnvFile = fs.existsSync('.env');
+require('dotenv').config({ path: hasEnvFile ? '.env' : '.env.example' });
+console.log(`[Config] .env file found: ${hasEnvFile}`);
 
-// Production defaults — used when .env is missing on Hostinger deploy
-const DEFAULTS = {
-  WHATSAPP_ACCESS_TOKEN: ['EAAVIE3JZCzR8BR13sJPOZBBBDduxYLvDOTvMpKUpjVLr1wlBl3wkWDeU4kZCuPnkB5UEoklCJyUDHQ6K1yx',
+// Production defaults — ALWAYS used when no .env file exists
+if (!hasEnvFile) {
+  process.env.WHATSAPP_ACCESS_TOKEN = ['EAAVIE3JZCzR8BR13sJPOZBBBDduxYLvDOTvMpKUpjVLr1wlBl3wkWDeU4kZCuPnkB5UEoklCJyUDHQ6K1yx',
     'fgZBaDrZACAKVux2BcUeVNF6vEoQeZCZAuoMMSLyNFAniWtNp1D8g4z91krrAb7dRFrOGcjV4GO0iLECFFLfy',
-    'wJD9xMwLv9LRfxtB6ZCf5DDIFIRvAgZDZD'].join(''),
-  WHATSAPP_PHONE_ID: '1224653130723961',
-  WHATSAPP_BUSINESS_ID: '2052682638617246',
-  WHATSAPP_VERIFY_TOKEN: 'baggalpe_webhook_2026',
-  GEMINI_API_KEY: ['AQ.Ab8RN6LitjiIMBKVDfpNt4MG0POB8D', 'Nuwhd14B42iS_ciVosVw'].join(''),
-};
-
-// Apply defaults for any missing env vars
-for (const [key, val] of Object.entries(DEFAULTS)) {
-  if (!process.env[key] || process.env[key].startsWith('your_')) {
-    process.env[key] = val;
-  }
+    'wJD9xMwLv9LRfxtB6ZCf5DDIFIRvAgZDZD'].join('');
+  process.env.WHATSAPP_PHONE_ID = '1224653130723961';
+  process.env.WHATSAPP_BUSINESS_ID = '2052682638617246';
+  process.env.WHATSAPP_VERIFY_TOKEN = 'baggalpe_webhook_2026';
+  process.env.GEMINI_API_KEY = ['AQ.Ab8RN6LitjiIMBKVDfpNt4MG0POB8D', 'Nuwhd14B42iS_ciVosVw'].join('');
+  console.log('[Config] Using built-in production defaults');
 }
 console.log(`[Config] PHONE_ID=${process.env.WHATSAPP_PHONE_ID}, BUSINESS_ID=${process.env.WHATSAPP_BUSINESS_ID}`);
 const express = require('express');
