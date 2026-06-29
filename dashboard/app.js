@@ -440,14 +440,14 @@ $('#login-form').addEventListener('submit', async e => {
 $('#register-form').addEventListener('submit', async e => {
   e.preventDefault();
   const body = {
-    shop_name: $('#reg-shop-name').value.trim(),
+    name: $('#reg-shop-name').value.trim(),
     owner_name: $('#reg-owner-name').value.trim(),
     phone: $('#reg-phone').value.trim(),
     pin: $('#reg-pin').value.trim(),
     address: $('#reg-address').value.trim(),
     city: $('#reg-city').value.trim(),
     pincode: $('#reg-pincode').value.trim(),
-    shop_type: $('#reg-shop-type').value,
+    type: $('#reg-shop-type').value,
     delivery_radius_km: parseInt($('#reg-radius').value),
     lat: MERCHANT?.lat || null,
     lng: MERCHANT?.lng || null,
