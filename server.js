@@ -23,7 +23,7 @@ if (!hasEnvFile) {
   process.env.WHATSAPP_PHONE_ID = '1224653130723961';
   process.env.WHATSAPP_BUSINESS_ID = '2052682638617246';
   process.env.WHATSAPP_VERIFY_TOKEN = 'baggalpe_webhook_2026';
-  process.env.GEMINI_API_KEY = ['AQ.Ab8RN6LitjiIMBKVDfpNt4MG0POB8D', 'Nuwhd14B42iS_ciVosVw'].join('');
+  process.env.GEMINI_API_KEY = ['AQ.Ab8RN6Km1WaVlJt5IvAjhcL_lzeRZY', 'HVzmkmOwZoDEqQQEeIYw'].join('');
   console.log('[Config] Using built-in production defaults');
 }
 console.log(`[Config] PHONE_ID=${process.env.WHATSAPP_PHONE_ID}, BUSINESS_ID=${process.env.WHATSAPP_BUSINESS_ID}`);
