@@ -510,12 +510,24 @@ const PORT = process.env.PORT || 4000;
 
 initDB();
 
+// Auto-seed if no merchants exist
+const existingMerchants = getAllMerchants();
+if (existingMerchants.length === 0) {
+  console.log('[Server] No merchants found — auto-seeding...');
+  try {
+    require('./db/seed');
+    console.log('[Server] Seed complete ✅');
+  } catch (e) {
+    console.error('[Server] Seed failed:', e.message);
+  }
+}
+
 app.listen(PORT, () => {
   console.log(`\n🛒 Baggalpe Bot v2 running on port ${PORT}`);
   console.log(`📱 WhatsApp Webhook: http://localhost:${PORT}/webhook`);
   console.log(`🏪 Dashboard:       http://localhost:${PORT}/dashboard/`);
   console.log(`📦 Catalog:         ${MASTER_CATALOG.length} items in master catalog`);
+  console.log(`🏪 Merchants:       ${getAllMerchants().length} registered`);
   console.log(`🧪 Test Simulator:  http://localhost:${PORT}/test/simulator.html`);
   console.log(`❤️  Health Check:    http://localhost:${PORT}/health\n`);
 });
-
