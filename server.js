@@ -119,6 +119,31 @@ app.get('/terms', (req, res) => {
     </body></html>
   `);
 });
+// ---------------------------------------------------------------------------
+// GET /setup-profile — One-time profile setup via WhatsApp Cloud API
+// ---------------------------------------------------------------------------
+app.get('/setup-profile', async (req, res) => {
+  try {
+    const phoneId = process.env.WHATSAPP_PHONE_ID;
+    const token = process.env.WHATSAPP_ACCESS_TOKEN;
+    const response = await fetch(`https://graph.facebook.com/v25.0/${phoneId}/whatsapp_business_profile`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        about: '🛒 AI Shopping Assistant',
+        description: 'Baggalpe — Aapka AI Shopping Assistant! Grocery, sabzi, daily needs & services — sab kuch WhatsApp pe order karein.',
+        websites: ['https://baggalpe.com'],
+      }),
+    });
+    const data = await response.json();
+    console.log('[Setup] Profile updated:', JSON.stringify(data));
+    res.json({ success: true, result: data });
+  } catch (err) {
+    console.error('[Setup] Error:', err.message);
+    res.json({ success: false, error: err.message });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // GET /webhook — Meta Verification
