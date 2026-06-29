@@ -35,6 +35,38 @@ app.use(express.json());
 app.use('/test', express.static(path.join(__dirname, 'test')));
 
 // ---------------------------------------------------------------------------
+// GET / — Homepage
+// ---------------------------------------------------------------------------
+app.get('/', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Baggalpe — AI Shopping Assistant</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0a0a0a; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .container { text-align: center; padding: 2rem; }
+        h1 { font-size: 3rem; background: linear-gradient(135deg, #25D366, #00d4ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        p { color: #888; margin-top: 1rem; font-size: 1.2rem; }
+        .badge { display: inline-block; margin-top: 2rem; padding: 0.8rem 2rem; background: #25D366; color: #000; border-radius: 50px; font-weight: bold; text-decoration: none; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>🛒 Baggalpe</h1>
+        <p>AI Shopping Assistant for WhatsApp</p>
+        <p style="color:#555; margin-top:0.5rem;">Order grocery, sabzi & services — seedha WhatsApp pe!</p>
+        <a href="https://wa.me/1555647399" class="badge">💬 Chat on WhatsApp</a>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
+// ---------------------------------------------------------------------------
 // GET /webhook — Meta Verification
 // ---------------------------------------------------------------------------
 
