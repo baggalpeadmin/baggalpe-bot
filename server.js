@@ -145,6 +145,9 @@ app.get('/webhook', (req, res) => {
  * Message processing happens asynchronously.
  */
 app.post('/webhook', (req, res) => {
+  // Log ALL incoming POST requests for debugging
+  console.log('[Webhook] POST received!', JSON.stringify(req.body).substring(0, 500));
+
   // Acknowledge receipt immediately — Meta retries on non-2xx
   res.sendStatus(200);
 
