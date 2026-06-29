@@ -10,7 +10,7 @@
 // NOTE: These service/db modules are expected to exist.
 // If they don't exist yet, the bot will log errors gracefully.
 
-let ai, catalog, order, whatsapp, schema;
+let ai, catalog, order, whatsapp, schema, masterCatalog;
 
 try { ai = require('../services/ai'); } catch (e) {
   console.warn('[Router] services/ai not found — AI intent detection disabled');
@@ -31,6 +31,10 @@ try { whatsapp = require('../services/whatsapp'); } catch (e) {
 try { schema = require('../db/schema'); } catch (e) {
   console.warn('[Router] db/schema not found — conversation persistence disabled');
   schema = null;
+}
+try { masterCatalog = require('../db/master-catalog'); } catch (e) {
+  console.warn('[Router] db/master-catalog not found — category browsing disabled');
+  masterCatalog = null;
 }
 
 const { getFlow, getState, getNextStep, isFlowComplete } = require('./flows');
@@ -849,26 +853,202 @@ async function handleActiveConversation(from, messageText, conversation) {
 
       await sendMessage(from, templates.merchantSelected(selected.name));
 
-      // Search products for this merchant
-      let products = [];
-      if (catalog && typeof catalog.searchProducts === 'function') {
-        products = await catalog.searchProducts(context.items, selected.id);
+      // Show category menu (v2)
+      let categoryMsg = `🛒 *${selected.name} se kya chahiye?*\n\n`;
+
+      if (masterCatalog && masterCatalog.CATEGORIES) {
+        const cats = masterCatalog.CATEGORIES;
+        const catKeys = Object.keys(cats);
+        catKeys.forEach((key, i) => {
+          categoryMsg += `${i + 1}. ${cats[key].icon} ${cats[key].name}\n`;
+        });
+        context.categoryKeys = catKeys;
+      } else {
+        categoryMsg += `1. 🛒 Grocery\n2. 🥛 Dairy\n3. 🥬 Sabzi\n4. 🍎 Fruits\n5. 🧼 Household\n6. 🧴 Personal Care\n7. 🍪 Snacks\n8. ☕ Beverages\n9. 🏥 Pharmacy`;
+        context.categoryKeys = ['grocery', 'dairy', 'sabzi', 'fruits', 'household', 'personal_care', 'snacks', 'beverages', 'pharmacy'];
       }
 
-      // Demo product data fallback
-      if (products.length === 0) {
-        products = [
-          { name: 'Ashirvaad Aata 5kg', price: 275, emoji: '📦', unit: '' },
-          { name: 'Tamatar', price: 40, emoji: '🍅', unit: 'kg' },
-          { name: 'Pyaaz', price: 30, emoji: '🧅', unit: 'kg' },
-          { name: 'Aloo', price: 25, emoji: '🥔', unit: 'kg' },
-          { name: 'Mirch', price: 60, emoji: '🌶️', unit: 'kg' }
-        ];
-      }
+      categoryMsg += `\n\n✍️ *Ya seedha apni list bhej do!*\n_Jaise: "aata 5kg, dal 1kg, surf excel"_`;
 
-      context.availableProducts = products;
-      await sendMessage(from, templates.showProducts(products, selected.name));
+      await sendMessage(from, categoryMsg);
+      // Step 3 = category selection / list input
       saveConversation(from, flowName, 3, context);
+      break;
+    }
+
+    // ── User browsing by category OR sending their own list ──
+    case 'category_selection': {
+      const categoryKeys = context.categoryKeys || ['grocery', 'dairy', 'sabzi', 'fruits', 'household', 'personal_care', 'snacks', 'beverages', 'pharmacy'];
+      const selectedCatIdx = parseNumberSelection(messageText, categoryKeys.length);
+
+      if (selectedCatIdx !== null) {
+        // User picked a category number
+        const catKey = categoryKeys[selectedCatIdx];
+        console.log(`[Router] Category selected: ${catKey}`);
+
+        // Get items from merchant's inventory for this category
+        let items = [];
+        if (schema && typeof schema.getMerchantInventoryByCategory === 'function') {
+          items = schema.getMerchantInventoryByCategory(context.selectedMerchant.id, catKey);
+        }
+
+        if (items.length === 0) {
+          await sendMessage(from, `Is category mein abhi koi item available nahi hai 😔\n\nDusri category try karein ya apni list bhej do!`);
+          return;
+        }
+
+        // Show items in this category
+        let msg = `📋 *${masterCatalog ? masterCatalog.CATEGORIES[catKey]?.name || catKey : catKey}:*\n\n`;
+        items.forEach((item, i) => {
+          msg += `${i + 1}. ${item.name} — ₹${item.price}/${item.unit}\n`;
+        });
+        msg += `\n👆 Item number bhejo ya multiple items likhein\n_"1, 3, 5" ya "aata, dal" type karein_\n\n↩️ "back" for categories`;
+
+        context.currentCategory = catKey;
+        context.categoryItems = items;
+        saveConversation(from, flowName, 4, context); // Step 4 = item selection
+        await sendMessage(from, msg);
+      } else {
+        // User sent a text list — fuzzy match against merchant inventory
+        console.log(`[Router] User sent custom list: "${messageText}"`);
+
+        const itemNames = messageText.split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
+        let matchedItems = [];
+        let unmatchedItems = [];
+
+        if (schema && typeof schema.searchMerchantInventory === 'function') {
+          for (const name of itemNames) {
+            const results = schema.searchMerchantInventory(context.selectedMerchant.id, name);
+            if (results.length > 0) {
+              matchedItems.push(results[0]); // Best match
+            } else {
+              unmatchedItems.push(name);
+            }
+          }
+        }
+
+        if (matchedItems.length === 0 && unmatchedItems.length === 0) {
+          await sendMessage(from, `Kuch samajh nahi aaya 😅\n\nCategory number bhejo ya items ki list likhein\n_Jaise: "aata, dal, sabun"_`);
+          return;
+        }
+
+        // Build response
+        let msg = '';
+        if (matchedItems.length > 0) {
+          msg += `✅ *Available items:*\n\n`;
+          matchedItems.forEach((item, i) => {
+            msg += `${i + 1}. ${item.name} — ₹${item.price}/${item.unit}\n`;
+          });
+        }
+
+        if (unmatchedItems.length > 0) {
+          msg += `\n❓ *Yeh nahi mila:*\n`;
+          unmatchedItems.forEach(name => {
+            msg += `• ${name}\n`;
+          });
+          msg += `_Shopkeeper se pooch rahe hain..._\n`;
+
+          // Create special requests for unmatched items
+          if (schema && typeof schema.createSpecialRequest === 'function') {
+            for (const name of unmatchedItems) {
+              schema.createSpecialRequest(from, context.selectedMerchant.id, name);
+            }
+          }
+        }
+
+        if (matchedItems.length > 0) {
+          const subtotal = matchedItems.reduce((sum, i) => sum + (i.price || 0), 0);
+          const platformFee = 10;
+          const gst = 1.80;
+          const total = subtotal + platformFee + gst;
+
+          msg += `\n────────────────\n`;
+          msg += `Subtotal: ₹${subtotal}\n`;
+          msg += `Platform Fee: ₹${platformFee}\n`;
+          msg += `GST (18%): ₹${gst}\n`;
+          msg += `*Total: ₹${total.toFixed(2)}*\n\n`;
+          msg += `✅ *"Haan"* bolein toh order place kar dein!`;
+
+          context.selectedProducts = matchedItems;
+          context.subtotal = subtotal;
+          context.platformFee = platformFee;
+          context.gstOnPlatform = gst;
+          context.total = total;
+          saveConversation(from, flowName, 5, context); // Step 5 = payment
+        } else {
+          msg += `\nJab shopkeeper jawab de, hum aapko bata denge! 📲`;
+          clearConversation(from);
+        }
+
+        await sendMessage(from, msg);
+      }
+      break;
+    }
+
+    // ── User selecting items from a category view ──
+    case 'item_selection': {
+      // Check for "back"
+      if (messageText.toLowerCase().trim() === 'back') {
+        // Go back to categories
+        let categoryMsg = `🛒 *Category choose karein:*\n\n`;
+        const categoryKeys = context.categoryKeys || [];
+        if (masterCatalog && masterCatalog.CATEGORIES) {
+          categoryKeys.forEach((key, i) => {
+            categoryMsg += `${i + 1}. ${masterCatalog.CATEGORIES[key]?.icon || ''} ${masterCatalog.CATEGORIES[key]?.name || key}\n`;
+          });
+        }
+        categoryMsg += `\n✍️ *Ya seedha apni list bhej do!*`;
+        saveConversation(from, flowName, 3, context);
+        await sendMessage(from, categoryMsg);
+        return;
+      }
+
+      const categoryItems = context.categoryItems || [];
+      // Parse item numbers: "1, 3, 5" or "1 3 5"
+      const selections = messageText.split(/[,\s]+/).map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n >= 1 && n <= categoryItems.length);
+
+      let selectedItems = [];
+      if (selections.length > 0) {
+        selectedItems = selections.map(n => categoryItems[n - 1]);
+      } else {
+        // Try text search
+        const results = schema ? schema.searchMerchantInventory(context.selectedMerchant.id, messageText) : [];
+        if (results.length > 0) {
+          selectedItems = [results[0]];
+        }
+      }
+
+      if (selectedItems.length === 0) {
+        await sendMessage(from, `Item number bhejo (jaise "1, 3") ya item ka naam likhein 📝`);
+        return;
+      }
+
+      // Add to cart
+      const existing = context.selectedProducts || [];
+      const combined = [...existing, ...selectedItems];
+      context.selectedProducts = combined;
+
+      const subtotal = combined.reduce((sum, i) => sum + (i.price || 0), 0);
+      const platformFee = 10;
+      const gst = 1.80;
+      const total = subtotal + platformFee + gst;
+
+      let msg = `🛒 *Cart:*\n\n`;
+      combined.forEach((item, i) => {
+        msg += `${i + 1}. ${item.name} — ₹${item.price}\n`;
+      });
+      msg += `\n────────────────\n`;
+      msg += `Subtotal: ₹${subtotal}\nPlatform Fee: ₹${platformFee}\nGST: ₹${gst}\n*Total: ₹${total.toFixed(2)}*\n\n`;
+      msg += `✅ *"Haan"* — Order place karein\n`;
+      msg += `🛒 *"Aur"* — Aur items add karein\n`;
+      msg += `❌ *"Cancel"* — Order cancel`;
+
+      context.subtotal = subtotal;
+      context.platformFee = platformFee;
+      context.gstOnPlatform = gst;
+      context.total = total;
+      saveConversation(from, flowName, 5, context);
+      await sendMessage(from, msg);
       break;
     }
 

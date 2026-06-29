@@ -11,20 +11,16 @@
  */
 
 const fs = require('fs');
-const hasEnvFile = fs.existsSync('.env');
-require('dotenv').config({ path: hasEnvFile ? '.env' : '.env.example' });
-console.log(`[Config] .env file found: ${hasEnvFile}`);
+const envPath = fs.existsSync('.env') ? '.env' : '.env.example';
+require('dotenv').config({ path: envPath });
+console.log(`[Config] Loaded from: ${envPath}`);
 
-// Production defaults — ALWAYS used when no .env file exists
-if (!hasEnvFile) {
-  process.env.WHATSAPP_ACCESS_TOKEN = ['EAAVIE3JZCzR8BR13sJPOZBBBDduxYLvDOTvMpKUpjVLr1wlBl3wkWDeU4kZCuPnkB5UEoklCJyUDHQ6K1yx',
-    'fgZBaDrZACAKVux2BcUeVNF6vEoQeZCZAuoMMSLyNFAniWtNp1D8g4z91krrAb7dRFrOGcjV4GO0iLECFFLfy',
-    'wJD9xMwLv9LRfxtB6ZCf5DDIFIRvAgZDZD'].join('');
-  process.env.WHATSAPP_PHONE_ID = '1224653130723961';
-  process.env.WHATSAPP_BUSINESS_ID = '2052682638617246';
-  process.env.WHATSAPP_VERIFY_TOKEN = 'baggalpe_webhook_2026';
-  process.env.GEMINI_API_KEY = ['AQ.Ab8RN6Km1WaVlJt5IvAjhcL_lzeRZY', 'HVzmkmOwZoDEqQQEeIYw'].join('');
-  console.log('[Config] Using built-in production defaults');
+// Validate required env vars
+const REQUIRED_ENV = ['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_ID', 'WHATSAPP_VERIFY_TOKEN', 'GEMINI_API_KEY'];
+const missing = REQUIRED_ENV.filter(k => !process.env[k] || process.env[k].startsWith('your_'));
+if (missing.length > 0) {
+  console.error(`[Config] ⚠️  Missing env vars: ${missing.join(', ')}`);
+  console.error('[Config] Create a .env file on the server with your actual tokens!');
 }
 console.log(`[Config] PHONE_ID=${process.env.WHATSAPP_PHONE_ID}, BUSINESS_ID=${process.env.WHATSAPP_BUSINESS_ID}`);
 const express = require('express');
@@ -321,14 +317,19 @@ app.get('/health', (_req, res) => {
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
 
 // ---------------------------------------------------------------------------
-// Dashboard API — Merchant Management
+// Dashboard API — Merchant Management (v2)
 // ---------------------------------------------------------------------------
 
 const {
   getMerchantByPhone, createMerchant, updateMerchant, getMerchant: getMerchantById,
-  getAllProducts: dbGetAllProducts, addProduct, updateProduct, deleteProduct,
+  getMerchantInventory, getMerchantInStockInventory, searchMerchantInventory,
+  onboardMerchant, addInventoryItem, updateInventoryItem, deleteInventoryItem,
   getOrdersByMerchant, updateOrderStatus: dbUpdateOrderStatus, getAllMerchants,
+  getSpecialRequests, getPendingRequests, updateSpecialRequest, addInventoryItem: addFromRequest,
+  createSpecialRequest,
 } = require('./db/schema');
+
+const { CATEGORIES, searchCatalog, getCatalogByCategory, MASTER_CATALOG } = require('./db/master-catalog');
 
 /** Middleware: extract merchant ID from header */
 function authMerchant(req, res, next) {
@@ -338,104 +339,165 @@ function authMerchant(req, res, next) {
   next();
 }
 
-// Login
+// ── Auth ────────────────────────────────────────────────────
+
 app.post('/api/merchant/login', (req, res) => {
   try {
     const { phone, pin } = req.body;
     if (!phone || !pin) return res.status(400).json({ error: 'Phone and PIN required' });
-
     const merchant = getMerchantByPhone(phone);
     if (!merchant) return res.status(404).json({ error: 'Merchant not found' });
     if (merchant.pin !== String(pin)) return res.status(401).json({ error: 'Wrong PIN' });
-
     res.json({ success: true, merchant });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Register new merchant
 app.post('/api/merchant/register', (req, res) => {
   try {
     const { name, owner_name, phone, address, city, pincode, type, pin, lat, lng, delivery_radius_km } = req.body;
     if (!name || !phone || !pin) return res.status(400).json({ error: 'Name, phone, and PIN required' });
-
-    // Check if phone already exists
     const existing = getMerchantByPhone(phone);
     if (existing) return res.status(409).json({ error: 'Phone number already registered' });
-
     const merchant = createMerchant({
       name, owner_name: owner_name || name, phone,
       address: address || '', city: city || '', pincode: pincode || '',
       type: type || 'kirana', pin: String(pin),
-      lat: lat ? parseFloat(lat) : null,
-      lng: lng ? parseFloat(lng) : null,
+      lat: lat ? parseFloat(lat) : null, lng: lng ? parseFloat(lng) : null,
       delivery_radius_km: delivery_radius_km ? parseFloat(delivery_radius_km) : 1,
     });
-
     res.json({ success: true, merchant });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Get profile
+// ── Profile ─────────────────────────────────────────────────
+
 app.get('/api/merchant/profile', authMerchant, (req, res) => {
   const merchant = getMerchantById(req.merchantId);
   if (!merchant) return res.status(404).json({ error: 'Not found' });
   res.json(merchant);
 });
 
-// Update profile
 app.put('/api/merchant/profile', authMerchant, (req, res) => {
   const updated = updateMerchant(req.merchantId, req.body);
   if (!updated) return res.status(404).json({ error: 'Not found' });
   res.json({ success: true, merchant: updated });
 });
 
-// Get products
-app.get('/api/merchant/products', authMerchant, (req, res) => {
-  const products = dbGetAllProducts(req.merchantId);
-  res.json(products);
+// ── Onboarding (NEW — auto-populates inventory from master catalog) ──
+
+app.post('/api/merchant/onboard', authMerchant, (req, res) => {
+  try {
+    const { categories, items } = req.body;
+    if (!categories || !Array.isArray(categories) || categories.length === 0) {
+      return res.status(400).json({ error: 'Select at least one category' });
+    }
+    const count = onboardMerchant(req.merchantId, categories, items || []);
+    res.json({ success: true, items_added: count });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// Add product
-app.post('/api/merchant/products', authMerchant, (req, res) => {
-  const product = addProduct(req.merchantId, req.body);
-  res.json({ success: true, product });
+// ── Master Catalog (public — for onboarding/adding items) ───
+
+app.get('/api/catalog/categories', (_req, res) => {
+  res.json(CATEGORIES);
 });
 
-// Update product
-app.put('/api/merchant/products/:id', authMerchant, (req, res) => {
-  const updated = updateProduct(parseInt(req.params.id, 10), req.body);
-  if (!updated) return res.status(404).json({ error: 'Product not found' });
-  res.json({ success: true, product: updated });
+app.get('/api/catalog/items', (req, res) => {
+  const { category } = req.query;
+  if (category) {
+    res.json(getCatalogByCategory(category));
+  } else {
+    res.json(MASTER_CATALOG);
+  }
 });
 
-// Delete product
-app.delete('/api/merchant/products/:id', authMerchant, (req, res) => {
-  const deleted = deleteProduct(parseInt(req.params.id, 10));
-  if (!deleted) return res.status(404).json({ error: 'Product not found' });
+app.get('/api/catalog/search', (req, res) => {
+  const { q } = req.query;
+  if (!q) return res.json([]);
+  res.json(searchCatalog(q));
+});
+
+// ── Inventory (v2 — replaces old products) ──────────────────
+
+app.get('/api/merchant/inventory', authMerchant, (req, res) => {
+  const inventory = getMerchantInventory(req.merchantId);
+  res.json(inventory);
+});
+
+app.post('/api/merchant/inventory/add', authMerchant, (req, res) => {
+  try {
+    const item = addInventoryItem(req.merchantId, req.body);
+    res.json({ success: true, item });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/merchant/inventory/:id', authMerchant, (req, res) => {
+  const updated = updateInventoryItem(parseInt(req.params.id, 10), req.body);
+  if (!updated) return res.status(404).json({ error: 'Item not found' });
+  res.json({ success: true, item: updated });
+});
+
+app.delete('/api/merchant/inventory/:id', authMerchant, (req, res) => {
+  const deleted = deleteInventoryItem(parseInt(req.params.id, 10));
+  if (!deleted) return res.status(404).json({ error: 'Item not found' });
   res.json({ success: true });
 });
 
-// Get orders
+// ── Special Requests ────────────────────────────────────────
+
+app.get('/api/merchant/requests', authMerchant, (req, res) => {
+  const requests = getSpecialRequests(req.merchantId);
+  res.json(requests);
+});
+
+app.put('/api/merchant/requests/:id', authMerchant, (req, res) => {
+  try {
+    const { status, price } = req.body;
+    const updated = updateSpecialRequest(parseInt(req.params.id, 10), { status, price });
+    if (!updated) return res.status(404).json({ error: 'Request not found' });
+
+    // If accepted, auto-add to inventory
+    if (status === 'accepted' && updated.item_name) {
+      addInventoryItem(req.merchantId, {
+        custom_name: updated.item_name,
+        category: 'general',
+        price: price || 0,
+        unit: 'piece',
+        in_stock: 1,
+      });
+    }
+
+    res.json({ success: true, request: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Orders ──────────────────────────────────────────────────
+
 app.get('/api/merchant/orders', authMerchant, (req, res) => {
   const orders = getOrdersByMerchant(req.merchantId);
   res.json(orders);
 });
 
-// Update order status
 app.put('/api/merchant/orders/:id/status', authMerchant, (req, res) => {
   const updated = dbUpdateOrderStatus(req.params.id, req.body.status);
   if (!updated) return res.status(404).json({ error: 'Order not found' });
   res.json({ success: true, order: updated });
 });
 
-// Get all merchants (public — for map/listing)
+// ── Public ──────────────────────────────────────────────────
+
 app.get('/api/merchants', (_req, res) => {
   const merchants = getAllMerchants().filter(m => m.is_active !== 0);
-  // Strip sensitive fields
   const safe = merchants.map(({ pin, ...rest }) => rest);
   res.json(safe);
 });
@@ -446,12 +508,14 @@ app.get('/api/merchants', (_req, res) => {
 
 const PORT = process.env.PORT || 4000;
 
-initDB(); // Create / migrate database tables
+initDB();
 
 app.listen(PORT, () => {
-  console.log(`\n🛒 Baggalpe Bot Server running on port ${PORT}`);
+  console.log(`\n🛒 Baggalpe Bot v2 running on port ${PORT}`);
   console.log(`📱 WhatsApp Webhook: http://localhost:${PORT}/webhook`);
   console.log(`🏪 Dashboard:       http://localhost:${PORT}/dashboard/`);
+  console.log(`📦 Catalog:         ${MASTER_CATALOG.length} items in master catalog`);
   console.log(`🧪 Test Simulator:  http://localhost:${PORT}/test/simulator.html`);
   console.log(`❤️  Health Check:    http://localhost:${PORT}/health\n`);
 });
+

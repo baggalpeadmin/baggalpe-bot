@@ -1,14 +1,15 @@
 /**
  * @file db/schema.js
- * @description JSON file-based storage for Baggalpe Bot.
- * Drop-in replacement for SQLite — works on any hosting without native compilation.
- * Each collection is a JSON file in the db/data/ directory.
+ * @description JSON file-based storage for Baggalpe Bot v2.
+ * Supports: users, merchants, merchant_inventory, orders, conversations, special_requests.
+ * Uses master catalog for pre-built item database.
  */
 
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
+const { MASTER_CATALOG, searchCatalog, getCatalogByCategory, getCatalogItem } = require('./master-catalog');
 
 const DATA_DIR = path.join(__dirname, 'data');
 
@@ -57,8 +58,7 @@ function initDB() {
   if (initialized) return;
   ensureDataDir();
 
-  // Create empty files if they don't exist
-  const collections = ['users', 'merchants', 'products', 'orders', 'conversations'];
+  const collections = ['users', 'merchants', 'merchant_inventory', 'products', 'orders', 'conversations', 'special_requests'];
   for (const name of collections) {
     const filePath = path.join(DATA_DIR, `${name}.json`);
     if (!fs.existsSync(filePath)) {
@@ -72,12 +72,8 @@ function initDB() {
 
 // ── Haversine Distance Calculator ───────────────────────────
 
-/**
- * Calculate distance between two GPS coordinates using Haversine formula.
- * @returns {number} Distance in kilometers
- */
 function haversineDistance(lat1, lng1, lat2, lng2) {
-  const R = 6371; // Earth's radius in km
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const a =
@@ -90,7 +86,9 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
   return R * c;
 }
 
-// ── Users ───────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  USERS
+// ══════════════════════════════════════════════════════════════
 
 function getUser(phone) {
   initDB();
@@ -106,12 +104,8 @@ function createUser(phone, name, city) {
 
   const user = {
     id: getNextId(users),
-    phone,
-    name: name || null,
-    city: city || null,
-    lat: null,
-    lng: null,
-    language: 'hi',
+    phone, name: name || null, city: city || null,
+    lat: null, lng: null, language: 'hi',
     created_at: new Date().toISOString()
   };
   users.push(user);
@@ -119,9 +113,6 @@ function createUser(phone, name, city) {
   return user;
 }
 
-/**
- * Update a user's last known GPS location.
- */
 function updateUserLocation(phone, lat, lng) {
   initDB();
   const users = readCollection('users');
@@ -129,12 +120,8 @@ function updateUserLocation(phone, lat, lng) {
   if (!user) {
     user = {
       id: getNextId(users),
-      phone,
-      name: null,
-      city: null,
-      lat, lng,
-      language: 'hi',
-      created_at: new Date().toISOString()
+      phone, name: null, city: null, lat, lng,
+      language: 'hi', created_at: new Date().toISOString()
     };
     users.push(user);
   } else {
@@ -145,7 +132,9 @@ function updateUserLocation(phone, lat, lng) {
   return user;
 }
 
-// ── Merchants ───────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  MERCHANTS
+// ══════════════════════════════════════════════════════════════
 
 function getMerchant(id) {
   initDB();
@@ -164,15 +153,6 @@ function getMerchantsByCity(city, type) {
   });
 }
 
-/**
- * Find active merchants near a GPS coordinate.
- * A merchant is "nearby" if the user is within the merchant's delivery_radius_km.
- * Default radius is 1km if not set.
- * @param {number} lat - User's latitude
- * @param {number} lng - User's longitude
- * @param {string} [type] - Optional merchant type filter (kirana, sabzi, etc.)
- * @returns {Array} Merchants sorted by distance, each with a `distance_km` field
- */
 function findMerchantsByLocation(lat, lng, type) {
   initDB();
   const merchants = readCollection('merchants');
@@ -186,32 +166,23 @@ function findMerchantsByLocation(lat, lng, type) {
     const dist = haversineDistance(lat, lng, m.lat, m.lng);
     const merchantRadius = m.delivery_radius_km || 1;
 
-    // Show merchant if user is within the merchant's delivery radius
     if (dist <= merchantRadius) {
       results.push({ ...m, distance_km: Math.round(dist * 100) / 100 });
     }
   }
 
-  // Sort by distance (nearest first)
   results.sort((a, b) => a.distance_km - b.distance_km);
   return results;
 }
 
-/**
- * Get all merchants (for admin/dashboard purposes)
- */
 function getAllMerchants() {
   initDB();
   return readCollection('merchants');
 }
 
-/**
- * Get a merchant by phone number (for login)
- */
 function getMerchantByPhone(phone) {
   initDB();
   const merchants = readCollection('merchants');
-  // Normalize phone — strip leading 91 if present
   const normalizedPhone = phone.replace(/^91/, '');
   return merchants.find(m => {
     const mPhone = (m.phone || '').replace(/^91/, '');
@@ -219,9 +190,6 @@ function getMerchantByPhone(phone) {
   }) || undefined;
 }
 
-/**
- * Create a new merchant (registration)
- */
 function createMerchant(data) {
   initDB();
   const merchants = readCollection('merchants');
@@ -238,8 +206,11 @@ function createMerchant(data) {
     lng: data.lng || null,
     delivery_radius_km: data.delivery_radius_km || 1,
     pin: data.pin || '1234',
+    gst_registered: false,
+    gstin: '',
     rating: 0,
     is_active: 1,
+    onboarded: false,
     created_at: new Date().toISOString()
   };
   merchants.push(merchant);
@@ -247,18 +218,15 @@ function createMerchant(data) {
   return merchant;
 }
 
-/**
- * Update a merchant's profile
- */
 function updateMerchant(id, data) {
   initDB();
   const merchants = readCollection('merchants');
   const idx = merchants.findIndex(m => m.id === id);
   if (idx === -1) return null;
 
-  // Only update allowed fields
   const allowed = ['name', 'owner_name', 'phone', 'address', 'city', 'pincode',
-    'lat', 'lng', 'delivery_radius_km', 'pin', 'type', 'is_active'];
+    'lat', 'lng', 'delivery_radius_km', 'pin', 'type', 'is_active',
+    'gst_registered', 'gstin', 'onboarded'];
   for (const key of allowed) {
     if (data[key] !== undefined) {
       merchants[idx][key] = data[key];
@@ -268,24 +236,228 @@ function updateMerchant(id, data) {
   return merchants[idx];
 }
 
-// ── Products ────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  MERCHANT INVENTORY (Links merchant ↔ catalog items)
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Get a merchant's full inventory with catalog details.
+ */
+function getMerchantInventory(merchantId) {
+  initDB();
+  const inventory = readCollection('merchant_inventory');
+  return inventory
+    .filter(i => i.merchant_id === merchantId)
+    .map(item => {
+      // Enrich with catalog details if it's a catalog item
+      if (item.catalog_item_id) {
+        const catalogItem = getCatalogItem(item.catalog_item_id);
+        if (catalogItem) {
+          return {
+            ...item,
+            name: item.custom_name || catalogItem.name,
+            category: catalogItem.category,
+            subcategory: catalogItem.subcategory,
+            unit: item.unit || catalogItem.unit,
+            brand: catalogItem.brand,
+            default_price: catalogItem.default_price,
+          };
+        }
+      }
+      return item;
+    });
+}
+
+/**
+ * Get in-stock inventory items for a merchant (for customer-facing search).
+ */
+function getMerchantInStockInventory(merchantId) {
+  return getMerchantInventory(merchantId).filter(i => i.in_stock === 1);
+}
+
+/**
+ * Get inventory items for a merchant filtered by category.
+ */
+function getMerchantInventoryByCategory(merchantId, category) {
+  return getMerchantInStockInventory(merchantId).filter(i => i.category === category);
+}
+
+/**
+ * Search a merchant's inventory by query (fuzzy matching).
+ */
+function searchMerchantInventory(merchantId, query) {
+  if (!query) return [];
+  const q = query.toLowerCase().trim();
+  const inventory = getMerchantInStockInventory(merchantId);
+
+  // Score each item based on match quality
+  const scored = inventory.map(item => {
+    let score = 0;
+    const name = (item.name || '').toLowerCase();
+    const brand = (item.brand || '').toLowerCase();
+
+    if (name === q) score = 100;
+    else if (name.startsWith(q)) score = 80;
+    else if (name.includes(q)) score = 60;
+    else if (brand.includes(q)) score = 40;
+
+    // Check catalog keywords
+    if (score === 0 && item.catalog_item_id) {
+      const catalogItem = getCatalogItem(item.catalog_item_id);
+      if (catalogItem && catalogItem.keywords) {
+        for (const kw of catalogItem.keywords) {
+          if (kw.includes(q) || q.includes(kw)) {
+            score = 50;
+            break;
+          }
+        }
+      }
+    }
+
+    return { ...item, _score: score };
+  });
+
+  return scored.filter(i => i._score > 0).sort((a, b) => b._score - a._score);
+}
+
+/**
+ * Onboard a merchant: bulk-add items from master catalog.
+ * @param {number} merchantId
+ * @param {Array<string>} categories - Selected category keys
+ * @param {Array<{catalog_id: number, price: number, in_stock: number}>} [itemOverrides] - Custom prices/stock
+ */
+function onboardMerchant(merchantId, categories, itemOverrides) {
+  initDB();
+  const inventory = readCollection('merchant_inventory');
+  const overrideMap = {};
+  if (itemOverrides) {
+    for (const ov of itemOverrides) {
+      overrideMap[ov.catalog_id] = ov;
+    }
+  }
+
+  // Get all catalog items for selected categories
+  let newItems = 0;
+  for (const cat of categories) {
+    const items = getCatalogByCategory(cat);
+    for (const item of items) {
+      // Skip if already in inventory
+      const exists = inventory.find(i => i.merchant_id === merchantId && i.catalog_item_id === item.id);
+      if (exists) continue;
+
+      const override = overrideMap[item.id];
+      inventory.push({
+        id: getNextId(inventory),
+        merchant_id: merchantId,
+        catalog_item_id: item.id,
+        custom_name: null,
+        price: override ? override.price : item.default_price,
+        unit: item.unit,
+        in_stock: override ? override.in_stock : 1,
+        is_custom: false,
+        created_at: new Date().toISOString()
+      });
+      newItems++;
+    }
+  }
+
+  writeCollection('merchant_inventory', inventory);
+
+  // Mark merchant as onboarded
+  updateMerchant(merchantId, { onboarded: true });
+
+  console.log(`[DB] Onboarded merchant ${merchantId}: ${newItems} items added from ${categories.length} categories`);
+  return newItems;
+}
+
+/**
+ * Add a single item to merchant inventory (from catalog or custom).
+ */
+function addInventoryItem(merchantId, data) {
+  initDB();
+  const inventory = readCollection('merchant_inventory');
+
+  // Check for duplicate catalog item
+  if (data.catalog_item_id) {
+    const exists = inventory.find(i => i.merchant_id === merchantId && i.catalog_item_id === data.catalog_item_id);
+    if (exists) {
+      // Just update stock to in_stock
+      exists.in_stock = 1;
+      if (data.price) exists.price = data.price;
+      writeCollection('merchant_inventory', inventory);
+      return exists;
+    }
+  }
+
+  const item = {
+    id: getNextId(inventory),
+    merchant_id: merchantId,
+    catalog_item_id: data.catalog_item_id || null,
+    custom_name: data.custom_name || data.name || null,
+    category: data.category || 'general',
+    price: data.price || 0,
+    unit: data.unit || 'piece',
+    in_stock: data.in_stock !== undefined ? data.in_stock : 1,
+    is_custom: !data.catalog_item_id,
+    created_at: new Date().toISOString()
+  };
+  inventory.push(item);
+  writeCollection('merchant_inventory', inventory);
+  return item;
+}
+
+/**
+ * Update a merchant inventory item (price, stock, etc.)
+ */
+function updateInventoryItem(itemId, data) {
+  initDB();
+  const inventory = readCollection('merchant_inventory');
+  const idx = inventory.findIndex(i => i.id === itemId);
+  if (idx === -1) return null;
+
+  const allowed = ['price', 'in_stock', 'custom_name', 'unit'];
+  for (const key of allowed) {
+    if (data[key] !== undefined) {
+      inventory[idx][key] = data[key];
+    }
+  }
+  writeCollection('merchant_inventory', inventory);
+  return inventory[idx];
+}
+
+/**
+ * Delete a merchant inventory item.
+ */
+function deleteInventoryItem(itemId) {
+  initDB();
+  const inventory = readCollection('merchant_inventory');
+  const filtered = inventory.filter(i => i.id !== itemId);
+  if (filtered.length === inventory.length) return false;
+  writeCollection('merchant_inventory', filtered);
+  return true;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  LEGACY PRODUCTS (kept for backward compat, maps to inventory)
+// ══════════════════════════════════════════════════════════════
 
 function getProducts(merchantId) {
+  // Use new inventory system if merchant has inventory
+  const inventory = getMerchantInStockInventory(merchantId);
+  if (inventory.length > 0) return inventory;
+
+  // Fallback to old products collection
   initDB();
   const products = readCollection('products');
   return products.filter(p => p.merchant_id === merchantId && p.in_stock !== 0);
 }
 
-/**
- * Get ALL products for a merchant (including out of stock) — for dashboard
- */
-function getAllProducts(merchantId) {
-  initDB();
-  const products = readCollection('products');
-  return products.filter(p => p.merchant_id === merchantId);
-}
-
 function searchProducts(merchantId, query) {
+  // Use new inventory search if available
+  const results = searchMerchantInventory(merchantId, query);
+  if (results.length > 0) return results;
+
+  // Fallback to old products
   initDB();
   if (!merchantId || !query) return [];
   const products = readCollection('products');
@@ -297,70 +469,68 @@ function searchProducts(merchantId, query) {
   );
 }
 
-/**
- * Add a new product to a merchant's catalog
- */
-function addProduct(merchantId, data) {
+// ══════════════════════════════════════════════════════════════
+//  SPECIAL REQUESTS (Customer → Shopkeeper relay)
+// ══════════════════════════════════════════════════════════════
+
+function createSpecialRequest(customerPhone, merchantId, itemName) {
   initDB();
-  const products = readCollection('products');
-  const product = {
-    id: getNextId(products),
+  const requests = readCollection('special_requests');
+  const request = {
+    id: getNextId(requests),
+    customer_phone: customerPhone,
     merchant_id: merchantId,
-    name: data.name,
-    category: data.category || 'general',
-    price: data.price || 0,
-    unit: data.unit || 'piece',
-    in_stock: data.in_stock !== undefined ? data.in_stock : 1,
+    item_name: itemName,
+    status: 'pending', // pending | accepted | rejected
+    price: null,
+    created_at: new Date().toISOString()
   };
-  products.push(product);
-  writeCollection('products', products);
-  return product;
+  requests.push(request);
+  writeCollection('special_requests', requests);
+  return request;
 }
 
-/**
- * Update a product
- */
-function updateProduct(productId, data) {
+function getSpecialRequests(merchantId) {
   initDB();
-  const products = readCollection('products');
-  const idx = products.findIndex(p => p.id === productId);
+  const requests = readCollection('special_requests');
+  return requests
+    .filter(r => r.merchant_id === merchantId)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+}
+
+function getPendingRequests(merchantId) {
+  return getSpecialRequests(merchantId).filter(r => r.status === 'pending');
+}
+
+function updateSpecialRequest(requestId, data) {
+  initDB();
+  const requests = readCollection('special_requests');
+  const idx = requests.findIndex(r => r.id === requestId);
   if (idx === -1) return null;
 
-  const allowed = ['name', 'category', 'price', 'unit', 'in_stock'];
-  for (const key of allowed) {
-    if (data[key] !== undefined) {
-      products[idx][key] = data[key];
-    }
-  }
-  writeCollection('products', products);
-  return products[idx];
+  if (data.status) requests[idx].status = data.status;
+  if (data.price !== undefined) requests[idx].price = data.price;
+  requests[idx].responded_at = new Date().toISOString();
+  writeCollection('special_requests', requests);
+  return requests[idx];
 }
 
-/**
- * Delete a product
- */
-function deleteProduct(productId) {
-  initDB();
-  const products = readCollection('products');
-  const filtered = products.filter(p => p.id !== productId);
-  if (filtered.length === products.length) return false;
-  writeCollection('products', filtered);
-  return true;
-}
-
-// ── Orders ──────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  ORDERS
+// ══════════════════════════════════════════════════════════════
 
 function createOrder(data) {
   initDB();
   const orders = readCollection('orders');
   const order = {
     id: getNextId(orders),
-    order_number: data.orderNumber || data.order_number,
+    order_number: data.orderNumber || data.order_number || `BG-${Math.floor(10000 + Math.random() * 89999)}`,
     user_phone: data.userPhone || data.user_phone,
     merchant_id: data.merchantId || data.merchant_id,
     items: typeof data.items === 'string' ? data.items : JSON.stringify(data.items || []),
     subtotal: data.subtotal || 0,
     platform_fee: data.platformFee || data.platform_fee || 10,
+    gst_on_platform: data.gst_on_platform || 1.80,
     total: data.total || 0,
     status: data.status || 'pending',
     payment_status: data.paymentStatus || data.payment_status || 'unpaid',
@@ -376,7 +546,6 @@ function getOrder(orderNumber) {
   const orders = readCollection('orders');
   const order = orders.find(o => o.order_number === orderNumber);
   if (!order) return undefined;
-  // Parse items JSON
   if (typeof order.items === 'string') {
     try { order.items = JSON.parse(order.items); } catch (_) {}
   }
@@ -393,9 +562,6 @@ function updateOrderStatus(orderNumber, status) {
   return orders[idx];
 }
 
-/**
- * Get all orders for a specific merchant (for dashboard)
- */
 function getOrdersByMerchant(merchantId) {
   initDB();
   const orders = readCollection('orders');
@@ -410,9 +576,6 @@ function getOrdersByMerchant(merchantId) {
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 }
 
-/**
- * Get the latest order for a user phone
- */
 function getLatestOrder(phone) {
   initDB();
   const orders = readCollection('orders');
@@ -427,14 +590,15 @@ function getLatestOrder(phone) {
   return order;
 }
 
-// ── Conversations ───────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  CONVERSATIONS
+// ══════════════════════════════════════════════════════════════
 
 function getConversation(phone) {
   initDB();
   const conversations = readCollection('conversations');
   const conv = conversations.find(c => c.user_phone === phone);
   if (!conv) return undefined;
-  // Parse context JSON
   if (typeof conv.context === 'string') {
     try { conv.context = JSON.parse(conv.context); } catch (_) {}
   }
@@ -472,7 +636,9 @@ function clearConversation(phone) {
   writeCollection('conversations', filtered);
 }
 
-// ── Exports ─────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  EXPORTS
+// ══════════════════════════════════════════════════════════════
 
 module.exports = {
   initDB,
@@ -489,13 +655,23 @@ module.exports = {
   getMerchantByPhone,
   createMerchant,
   updateMerchant,
-  // Products
+  // Merchant Inventory (v2)
+  getMerchantInventory,
+  getMerchantInStockInventory,
+  getMerchantInventoryByCategory,
+  searchMerchantInventory,
+  onboardMerchant,
+  addInventoryItem,
+  updateInventoryItem,
+  deleteInventoryItem,
+  // Legacy Products (backward compat)
   getProducts,
-  getAllProducts,
   searchProducts,
-  addProduct,
-  updateProduct,
-  deleteProduct,
+  // Special Requests
+  createSpecialRequest,
+  getSpecialRequests,
+  getPendingRequests,
+  updateSpecialRequest,
   // Orders
   createOrder,
   getOrder,

@@ -3,451 +3,415 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Baggalpe — Merchant Dashboard</title>
-  <link rel="icon" href="/favicon.ico">
+  <title>Baggalpe Merchant Dashboard — Manage Your Store</title>
+  <meta name="description" content="Baggalpe Merchant Dashboard V2 — manage inventory, orders, and customer requests from your kirana store.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-  <!-- ═══════════════════ TOAST CONTAINER ═══════════════════ -->
+  <!-- ═══════════════ TOAST CONTAINER ═══════════════ -->
   <div id="toast-container"></div>
 
-  <!-- ═══════════════════ LOADING OVERLAY ═══════════════════ -->
-  <div id="global-loader" class="loader-overlay hidden">
-    <div class="loader-spinner">
-      <div class="spinner-ring"></div>
-      <p class="loader-text">Loading...</p>
-    </div>
-  </div>
-
-  <!-- ═══════════════════ AUTH SCREENS ═══════════════════ -->
-  <div id="auth-container">
-    <!-- Floating gradient orbs -->
-    <div class="bg-orb orb-1"></div>
-    <div class="bg-orb orb-2"></div>
-    <div class="bg-orb orb-3"></div>
-
-    <!-- LOGIN -->
-    <div id="login-screen" class="auth-card glass-card">
-      <div class="auth-logo">
-        <div class="logo-icon">
-          <svg viewBox="0 0 48 48" fill="none">
-            <rect width="48" height="48" rx="12" fill="url(#logoGrad)"/>
-            <path d="M14 16h20v3H14zM14 22h20v3H14zM14 28h14v3H14z" fill="#fff"/>
-            <circle cx="36" cy="34" r="6" fill="#fff" opacity="0.9"/>
-            <path d="M34 34l2 2 3-3" stroke="#E8391D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <defs><linearGradient id="logoGrad" x1="0" y1="0" x2="48" y2="48"><stop stop-color="#E8391D"/><stop offset="1" stop-color="#FF6B35"/></linearGradient></defs>
-          </svg>
-        </div>
-        <h1 class="logo-text">Baggalpe</h1>
-        <p class="logo-tagline">Merchant Dashboard</p>
+  <!-- ═══════════════ AUTH SCREEN ═══════════════ -->
+  <section id="auth-screen" class="screen active">
+    <div class="auth-wrapper">
+      <div class="auth-brand">
+        <div class="brand-logo">🛍️</div>
+        <h1 class="brand-name">Baggalpe</h1>
+        <p class="brand-tagline">Merchant Dashboard</p>
       </div>
 
-      <form id="login-form" class="auth-form">
-        <div class="input-group">
-          <label for="login-phone">Phone Number</label>
-          <div class="input-wrapper">
+      <!-- LOGIN FORM -->
+      <div id="login-card" class="auth-card glass-card">
+        <h2 class="auth-title">Welcome Back</h2>
+        <p class="auth-subtitle">Sign in to manage your store</p>
+        <form id="login-form" autocomplete="off">
+          <div class="input-group">
             <span class="input-icon">📱</span>
-            <input type="tel" id="login-phone" placeholder="Enter your phone number" maxlength="10" required>
+            <input type="tel" id="login-phone" placeholder="Phone Number" maxlength="10" required>
           </div>
-        </div>
-        <div class="input-group">
-          <label for="login-pin">4-Digit PIN</label>
-          <div class="input-wrapper">
-            <span class="input-icon">🔒</span>
-            <input type="password" id="login-pin" placeholder="Enter PIN" maxlength="4" required>
+          <div class="input-group">
+            <span class="input-icon">🔑</span>
+            <input type="password" id="login-pin" placeholder="4-Digit PIN" maxlength="4" required>
           </div>
-        </div>
-        <button type="submit" class="btn btn-primary btn-full">
-          <span>Sign In</span>
-          <span class="btn-loader hidden"></span>
-        </button>
-      </form>
-
-      <div class="auth-divider">
-        <span>New to Baggalpe?</span>
-      </div>
-      <button id="show-register-btn" class="btn btn-outline btn-full">Register New Shop</button>
-    </div>
-
-    <!-- REGISTRATION -->
-    <div id="register-screen" class="auth-card glass-card hidden">
-      <div class="auth-header">
-        <button id="back-to-login-btn" class="btn-icon" title="Back to login">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <div>
-          <h2>Register Your Shop</h2>
-          <p class="text-muted">Join Baggalpe and start selling</p>
-        </div>
+          <button type="submit" class="btn btn-primary btn-block">Sign In →</button>
+        </form>
+        <p class="auth-switch">New merchant? <a href="#" id="show-register">Register here</a></p>
       </div>
 
-      <form id="register-form" class="auth-form">
-        <div class="form-grid">
-          <div class="input-group">
-            <label for="reg-shop-name">Shop Name *</label>
-            <input type="text" id="reg-shop-name" placeholder="e.g. Sharma General Store" required>
-          </div>
-          <div class="input-group">
-            <label for="reg-owner">Owner Name *</label>
-            <input type="text" id="reg-owner" placeholder="Full name" required>
-          </div>
-          <div class="input-group">
-            <label for="reg-phone">Phone *</label>
-            <input type="tel" id="reg-phone" placeholder="10-digit number" maxlength="10" required>
-          </div>
-          <div class="input-group">
-            <label for="reg-type">Shop Type *</label>
-            <select id="reg-type" required>
-              <option value="">Select type...</option>
-              <option value="kirana">Kirana Store</option>
-              <option value="sabzi">Sabzi / Vegetables</option>
-              <option value="pharmacy">Pharmacy</option>
-              <option value="plumber">Plumber</option>
-              <option value="electrician">Electrician</option>
-              <option value="carpenter">Carpenter</option>
-              <option value="salon">Salon</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div class="input-group full-width">
-            <label for="reg-address">Address *</label>
-            <input type="text" id="reg-address" placeholder="Shop address" required>
-          </div>
-          <div class="input-group">
-            <label for="reg-city">City *</label>
-            <input type="text" id="reg-city" placeholder="City name" required>
-          </div>
-          <div class="input-group">
-            <label for="reg-pincode">Pincode *</label>
-            <input type="text" id="reg-pincode" placeholder="6-digit pincode" maxlength="6" required>
-          </div>
-          <div class="input-group">
-            <label for="reg-pin">Set 4-Digit PIN *</label>
-            <input type="password" id="reg-pin" placeholder="Create PIN" maxlength="4" required>
-          </div>
-          <div class="input-group">
-            <label for="reg-radius">Delivery Radius (km)</label>
-            <input type="number" id="reg-radius" value="1" min="0.5" max="50" step="0.5">
-          </div>
-        </div>
-
-        <div class="location-section">
-          <div class="location-header">
-            <h3>📍 Shop Location</h3>
-            <button type="button" id="get-location-btn" class="btn btn-sm btn-accent">
-              <span>📡 Get My Location</span>
-              <span class="btn-loader hidden"></span>
-            </button>
-          </div>
+      <!-- REGISTRATION FORM -->
+      <div id="register-card" class="auth-card glass-card hidden">
+        <h2 class="auth-title">Create Account</h2>
+        <p class="auth-subtitle">Get your store online in minutes</p>
+        <form id="register-form" autocomplete="off">
           <div class="form-grid">
             <div class="input-group">
-              <label for="reg-lat">Latitude</label>
-              <input type="number" id="reg-lat" placeholder="e.g. 12.9716" step="any">
+              <span class="input-icon">🏪</span>
+              <input type="text" id="reg-shop-name" placeholder="Shop Name" required>
             </div>
             <div class="input-group">
-              <label for="reg-lng">Longitude</label>
-              <input type="number" id="reg-lng" placeholder="e.g. 77.5946" step="any">
+              <span class="input-icon">👤</span>
+              <input type="text" id="reg-owner-name" placeholder="Owner Name" required>
+            </div>
+            <div class="input-group">
+              <span class="input-icon">📱</span>
+              <input type="tel" id="reg-phone" placeholder="Phone Number" maxlength="10" required>
+            </div>
+            <div class="input-group">
+              <span class="input-icon">🔑</span>
+              <input type="password" id="reg-pin" placeholder="4-Digit PIN" maxlength="4" required>
+            </div>
+            <div class="input-group full-width">
+              <span class="input-icon">📍</span>
+              <input type="text" id="reg-address" placeholder="Shop Address" required>
+            </div>
+            <div class="input-group">
+              <span class="input-icon">🏙️</span>
+              <input type="text" id="reg-city" placeholder="City" required>
+            </div>
+            <div class="input-group">
+              <span class="input-icon">📮</span>
+              <input type="text" id="reg-pincode" placeholder="Pincode" maxlength="6" required>
+            </div>
+            <div class="input-group full-width">
+              <span class="input-icon">🏬</span>
+              <select id="reg-shop-type" required>
+                <option value="" disabled selected>Shop Type</option>
+                <option value="kirana">Kirana / General Store</option>
+                <option value="grocery">Grocery Store</option>
+                <option value="supermarket">Supermarket</option>
+                <option value="pharmacy">Pharmacy</option>
+                <option value="dairy">Dairy &amp; Milk</option>
+                <option value="fruits_vegetables">Fruits &amp; Vegetables</option>
+                <option value="bakery">Bakery</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="input-group full-width slider-group">
+              <label class="slider-label">
+                <span>🚚 Delivery Radius: <strong id="radius-value">3</strong> km</span>
+              </label>
+              <input type="range" id="reg-radius" min="1" max="10" value="3" class="slider">
+              <div class="slider-marks">
+                <span>1km</span><span>5km</span><span>10km</span>
+              </div>
+            </div>
+            <div class="input-group full-width">
+              <button type="button" id="get-location-btn" class="btn btn-outline btn-block">📍 Get My Location</button>
             </div>
           </div>
-        </div>
-
-        <button type="submit" class="btn btn-primary btn-full">
-          <span>Create My Shop</span>
-          <span class="btn-loader hidden"></span>
-        </button>
-      </form>
+          <button type="submit" class="btn btn-primary btn-block">Create Account →</button>
+        </form>
+        <p class="auth-switch">Already registered? <a href="#" id="show-login">Sign in</a></p>
+      </div>
     </div>
-  </div>
+  </section>
 
-  <!-- ═══════════════════ MAIN DASHBOARD ═══════════════════ -->
-  <div id="dashboard-container" class="hidden">
-    <!-- SIDEBAR -->
-    <aside id="sidebar" class="glass-sidebar">
-      <div class="sidebar-brand">
-        <div class="brand-logo">
-          <svg viewBox="0 0 36 36" fill="none">
-            <rect width="36" height="36" rx="8" fill="url(#sideLogoGrad)"/>
-            <path d="M10 12h16v2.5H10zM10 17h16v2.5H10zM10 22h11v2.5H10z" fill="#fff"/>
-            <circle cx="28" cy="27" r="4.5" fill="#fff" opacity="0.9"/>
-            <path d="M26.5 27l1.5 1.5 2.2-2.2" stroke="#E8391D" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-            <defs><linearGradient id="sideLogoGrad" x1="0" y1="0" x2="36" y2="36"><stop stop-color="#E8391D"/><stop offset="1" stop-color="#FF6B35"/></linearGradient></defs>
-          </svg>
-        </div>
-        <div class="brand-info">
-          <span class="brand-name">Baggalpe</span>
-          <span class="brand-sub">Merchant</span>
+  <!-- ═══════════════ ONBOARDING WIZARD ═══════════════ -->
+  <section id="onboarding-screen" class="screen">
+    <div class="onboarding-wrapper">
+      <div class="onboarding-header">
+        <div class="brand-logo-sm">🛍️</div>
+        <h1>Set Up Your Store</h1>
+        <p>Let's get your inventory ready</p>
+        <div class="stepper">
+          <div class="step active" data-step="1"><span class="step-num">1</span><span class="step-text">Categories</span></div>
+          <div class="step-line"></div>
+          <div class="step" data-step="2"><span class="step-num">2</span><span class="step-text">Items &amp; Prices</span></div>
         </div>
       </div>
 
-      <div class="sidebar-shop-info">
-        <div class="shop-avatar" id="sidebar-avatar">S</div>
-        <div class="shop-meta">
-          <span class="shop-name" id="sidebar-shop-name">My Shop</span>
-          <span class="shop-status"><span class="status-dot active"></span>Active</span>
+      <!-- STEP 1: Category Selection -->
+      <div id="onboard-step-1" class="onboard-step active">
+        <h2>What do you sell?</h2>
+        <p class="step-desc">Select the categories that match your store</p>
+        <div class="category-select-all">
+          <label class="checkbox-card select-all-card">
+            <input type="checkbox" id="select-all-cats">
+            <span class="checkbox-mark"></span>
+            <span class="cat-icon">✅</span>
+            <span class="cat-name">Select All</span>
+          </label>
         </div>
+        <div id="category-grid" class="category-grid"></div>
+        <button id="onboard-next-btn" class="btn btn-primary btn-lg" disabled>Next →</button>
       </div>
 
-      <nav class="sidebar-nav">
-        <button class="nav-item active" data-section="profile">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 10a4 4 0 100-8 4 4 0 000 8zm0 2c-4 0-7 2-7 4v1h14v-1c0-2-3-4-7-4z" fill="currentColor"/></svg>
-          <span>Store Profile</span>
-        </button>
-        <button class="nav-item" data-section="products">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 3h14l-1.5 9H4.5L3 3zm0 0L2 1M7 16a1 1 0 100 2 1 1 0 000-2zm8 0a1 1 0 100 2 1 1 0 000-2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>Products</span>
-        </button>
-        <button class="nav-item" data-section="orders">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 2h12a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1zm2 4h8m-8 3h8m-8 3h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          <span>Orders</span>
-          <span class="nav-badge hidden" id="orders-badge">0</span>
-        </button>
+      <!-- STEP 2: Review & Customize Prices -->
+      <div id="onboard-step-2" class="onboard-step">
+        <h2>Review &amp; Set Prices</h2>
+        <p class="step-desc">Customize prices and toggle items you carry</p>
+        <div id="onboard-cat-tabs" class="cat-tabs"></div>
+        <div id="onboard-items-container" class="onboard-items-container"></div>
+        <div class="onboard-actions">
+          <button id="onboard-back-btn" class="btn btn-outline">← Back</button>
+          <button id="onboard-save-btn" class="btn btn-primary btn-lg">Save &amp; Go Live 🚀</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ MAIN DASHBOARD ═══════════════ -->
+  <section id="dashboard-screen" class="screen">
+    <div class="dashboard-layout">
+
+      <!-- SIDEBAR -->
+      <nav id="sidebar" class="sidebar">
+        <div class="sidebar-brand">
+          <span class="brand-logo-sm">🛍️</span>
+          <span class="brand-text">Baggalpe</span>
+        </div>
+        <ul class="nav-list">
+          <li class="nav-item active" data-section="inventory">
+            <span class="nav-icon">📦</span>
+            <span class="nav-label">Inventory</span>
+          </li>
+          <li class="nav-item" data-section="orders">
+            <span class="nav-icon">📋</span>
+            <span class="nav-label">Orders</span>
+            <span id="orders-badge" class="nav-badge hidden">0</span>
+          </li>
+          <li class="nav-item" data-section="requests">
+            <span class="nav-icon">📩</span>
+            <span class="nav-label">Requests</span>
+            <span id="requests-badge" class="nav-badge hidden">0</span>
+          </li>
+          <li class="nav-item" data-section="profile">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">Profile</span>
+          </li>
+        </ul>
+        <div class="sidebar-footer">
+          <button id="logout-btn" class="btn btn-ghost">🚪 Logout</button>
+        </div>
       </nav>
 
-      <div class="sidebar-footer">
-        <button id="logout-btn" class="btn btn-ghost btn-full">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M6 15H3a1 1 0 01-1-1V4a1 1 0 011-1h3M12 13l4-4-4-4M16 9H7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>Logout</span>
-        </button>
-      </div>
-    </aside>
+      <!-- MOBILE TOP BAR -->
+      <header class="mobile-topbar">
+        <button id="menu-toggle" class="menu-toggle">☰</button>
+        <span class="topbar-brand">🛍️ Baggalpe</span>
+        <button id="logout-btn-mobile" class="btn btn-ghost btn-sm">🚪</button>
+      </header>
 
-    <!-- MOBILE HEADER -->
-    <header id="mobile-header">
-      <button id="mobile-menu-btn" class="btn-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      </button>
-      <span class="mobile-title" id="mobile-shop-name">My Shop</span>
-      <button id="mobile-logout-btn" class="btn-icon" title="Logout">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M7 17H4a1 1 0 01-1-1V4a1 1 0 011-1h3M13 14l4-4-4-4M17 10H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-    </header>
+      <!-- MAIN CONTENT -->
+      <main class="main-content">
 
-    <!-- MOBILE SIDEBAR OVERLAY -->
-    <div id="sidebar-overlay" class="hidden"></div>
-
-    <!-- MAIN CONTENT -->
-    <main id="main-content">
-
-      <!-- ─── PROFILE SECTION ─── -->
-      <section id="section-profile" class="dashboard-section">
-        <div class="section-header">
-          <div>
-            <h1 class="section-title">Store Profile</h1>
-            <p class="section-subtitle">Manage your shop details and settings</p>
+        <!-- ────── INVENTORY SECTION ────── -->
+        <div id="section-inventory" class="content-section active">
+          <div class="section-header">
+            <h1>Inventory</h1>
+            <div class="header-actions">
+              <button id="add-from-catalog-btn" class="btn btn-primary btn-sm">+ Add from Catalog</button>
+              <button id="add-custom-btn" class="btn btn-outline btn-sm">+ Custom Item</button>
+            </div>
+          </div>
+          <div class="stats-bar">
+            <div class="stat-card glass-card">
+              <span class="stat-value" id="stat-total">0</span>
+              <span class="stat-label">Total Items</span>
+            </div>
+            <div class="stat-card glass-card">
+              <span class="stat-value stat-green" id="stat-instock">0</span>
+              <span class="stat-label">In Stock</span>
+            </div>
+            <div class="stat-card glass-card">
+              <span class="stat-value stat-red" id="stat-outstock">0</span>
+              <span class="stat-label">Out of Stock</span>
+            </div>
+          </div>
+          <div class="filter-bar">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="inv-search" placeholder="Search items...">
+            </div>
+            <div id="inv-cat-tabs" class="cat-tabs scrollable"></div>
+          </div>
+          <div id="inventory-grid" class="inventory-grid"></div>
+          <div id="inventory-empty" class="empty-state hidden">
+            <span class="empty-icon">📦</span>
+            <p>No items found</p>
           </div>
         </div>
 
-        <div class="profile-grid">
-          <div class="glass-card profile-card">
-            <div class="card-header">
-              <h3>Shop Information</h3>
-              <button id="edit-profile-btn" class="btn btn-sm btn-outline">Edit</button>
-            </div>
+        <!-- ────── ORDERS SECTION ────── -->
+        <div id="section-orders" class="content-section">
+          <div class="section-header">
+            <h1>Orders</h1>
+            <span id="pending-count" class="pending-badge">0 pending</span>
+          </div>
+          <div id="orders-list" class="orders-list"></div>
+          <div id="orders-empty" class="empty-state hidden">
+            <span class="empty-icon">📋</span>
+            <p>No orders yet</p>
+          </div>
+        </div>
+
+        <!-- ────── REQUESTS SECTION ────── -->
+        <div id="section-requests" class="content-section">
+          <div class="section-header">
+            <h1>Request Inbox</h1>
+          </div>
+          <div id="requests-list" class="requests-list"></div>
+          <div id="requests-empty" class="empty-state hidden">
+            <span class="empty-icon">📩</span>
+            <p>No pending requests</p>
+          </div>
+        </div>
+
+        <!-- ────── PROFILE SECTION ────── -->
+        <div id="section-profile" class="content-section">
+          <div class="section-header">
+            <h1>Store Profile</h1>
+          </div>
+          <div class="profile-card glass-card">
             <form id="profile-form">
               <div class="form-grid">
                 <div class="input-group">
-                  <label for="profile-name">Shop Name</label>
-                  <input type="text" id="profile-name" disabled>
+                  <label>Shop Name</label>
+                  <input type="text" id="prof-shop-name">
                 </div>
                 <div class="input-group">
-                  <label for="profile-owner">Owner</label>
-                  <input type="text" id="profile-owner" disabled>
+                  <label>Owner Name</label>
+                  <input type="text" id="prof-owner-name">
                 </div>
                 <div class="input-group">
-                  <label for="profile-phone">Phone</label>
-                  <input type="tel" id="profile-phone" disabled>
+                  <label>Phone</label>
+                  <input type="tel" id="prof-phone" readonly>
                 </div>
                 <div class="input-group">
-                  <label for="profile-type">Shop Type</label>
-                  <input type="text" id="profile-type" disabled>
+                  <label>City</label>
+                  <input type="text" id="prof-city">
                 </div>
                 <div class="input-group full-width">
-                  <label for="profile-address">Address</label>
-                  <input type="text" id="profile-address" disabled>
+                  <label>Address</label>
+                  <input type="text" id="prof-address">
                 </div>
                 <div class="input-group">
-                  <label for="profile-city">City</label>
-                  <input type="text" id="profile-city" disabled>
+                  <label>Pincode</label>
+                  <input type="text" id="prof-pincode" maxlength="6">
                 </div>
                 <div class="input-group">
-                  <label for="profile-pincode">Pincode</label>
-                  <input type="text" id="profile-pincode" disabled>
+                  <label>Shop Type</label>
+                  <select id="prof-type">
+                    <option value="kirana">Kirana / General Store</option>
+                    <option value="grocery">Grocery Store</option>
+                    <option value="supermarket">Supermarket</option>
+                    <option value="pharmacy">Pharmacy</option>
+                    <option value="dairy">Dairy &amp; Milk</option>
+                    <option value="fruits_vegetables">Fruits &amp; Vegetables</option>
+                    <option value="bakery">Bakery</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div class="input-group full-width slider-group">
+                  <label>🚚 Delivery Radius: <strong id="prof-radius-val">3</strong> km</label>
+                  <input type="range" id="prof-radius" min="1" max="10" value="3" class="slider">
+                </div>
+                <div class="input-group full-width">
+                  <button type="button" id="prof-location-btn" class="btn btn-outline btn-block">📍 Update Location</button>
+                </div>
+                <div class="input-group full-width profile-divider">
+                  <h3>GST Settings</h3>
                 </div>
                 <div class="input-group">
-                  <label for="profile-radius">Delivery Radius (km)</label>
-                  <input type="number" id="profile-radius" min="0.5" max="50" step="0.5" disabled>
+                  <label>GSTIN</label>
+                  <input type="text" id="prof-gstin" placeholder="Enter GSTIN">
+                </div>
+                <div class="input-group toggle-group">
+                  <label>GST Registered</label>
+                  <label class="toggle">
+                    <input type="checkbox" id="prof-gst-registered">
+                    <span class="toggle-slider"></span>
+                  </label>
                 </div>
               </div>
-              <div id="profile-actions" class="form-actions hidden">
-                <button type="button" id="cancel-profile-btn" class="btn btn-ghost">Cancel</button>
-                <button type="submit" class="btn btn-primary">
-                  <span>Save Changes</span>
-                  <span class="btn-loader hidden"></span>
-                </button>
+              <div class="profile-actions">
+                <button type="submit" class="btn btn-primary">Save Profile</button>
               </div>
             </form>
           </div>
-
-          <div class="glass-card location-card">
-            <div class="card-header">
-              <h3>📍 Location</h3>
-              <button id="update-location-btn" class="btn btn-sm btn-accent">
-                <span>Update Location</span>
-                <span class="btn-loader hidden"></span>
-              </button>
-            </div>
-            <div class="location-display">
-              <div class="coord-item">
-                <span class="coord-label">Latitude</span>
-                <span class="coord-value" id="profile-lat">—</span>
-              </div>
-              <div class="coord-item">
-                <span class="coord-label">Longitude</span>
-                <span class="coord-value" id="profile-lng">—</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ─── PRODUCTS SECTION ─── -->
-      <section id="section-products" class="dashboard-section hidden">
-        <div class="section-header">
-          <div>
-            <h1 class="section-title">Products</h1>
-            <p class="section-subtitle">Manage your product catalog</p>
-          </div>
-          <div class="section-actions">
-            <div class="input-group filter-group">
-              <select id="product-category-filter">
-                <option value="">All Categories</option>
-              </select>
-            </div>
-            <button id="add-product-btn" class="btn btn-primary">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-              <span>Add Product</span>
-            </button>
-          </div>
         </div>
 
-        <div class="products-stats">
-          <div class="stat-chip glass-card">
-            <span class="stat-number" id="stat-total">0</span>
-            <span class="stat-label">Total</span>
-          </div>
-          <div class="stat-chip glass-card">
-            <span class="stat-number stat-green" id="stat-instock">0</span>
-            <span class="stat-label">In Stock</span>
-          </div>
-          <div class="stat-chip glass-card">
-            <span class="stat-number stat-red" id="stat-outstock">0</span>
-            <span class="stat-label">Out of Stock</span>
-          </div>
-        </div>
+      </main>
+    </div>
+  </section>
 
-        <div id="products-list" class="products-grid">
-          <!-- Products rendered by JS -->
-        </div>
-        <div id="products-empty" class="empty-state hidden">
-          <div class="empty-icon">📦</div>
-          <h3>No products yet</h3>
-          <p>Add your first product to start selling on Baggalpe</p>
-          <button class="btn btn-primary add-first-product">Add Product</button>
-        </div>
-      </section>
+  <!-- ═══════════════ MODALS ═══════════════ -->
 
-      <!-- ─── ORDERS SECTION ─── -->
-      <section id="section-orders" class="dashboard-section hidden">
-        <div class="section-header">
-          <div>
-            <h1 class="section-title">Orders</h1>
-            <p class="section-subtitle">Track and manage customer orders</p>
-          </div>
-          <button id="refresh-orders-btn" class="btn btn-outline">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M14 8A6 6 0 112.5 5.5M2 2v4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span>Refresh</span>
-          </button>
-        </div>
-
-        <div id="orders-list" class="orders-container">
-          <!-- Orders rendered by JS -->
-        </div>
-        <div id="orders-empty" class="empty-state hidden">
-          <div class="empty-icon">📋</div>
-          <h3>No orders yet</h3>
-          <p>Orders from customers will appear here</p>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <!-- ═══════════════════ PRODUCT MODAL ═══════════════════ -->
-  <div id="product-modal" class="modal-overlay hidden">
+  <!-- Add from Catalog Modal -->
+  <div id="catalog-modal" class="modal-overlay hidden">
     <div class="modal glass-card">
       <div class="modal-header">
-        <h2 id="product-modal-title">Add Product</h2>
-        <button class="btn-icon modal-close" data-modal="product-modal">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        </button>
+        <h2>Add from Catalog</h2>
+        <button class="modal-close" data-modal="catalog-modal">✕</button>
       </div>
-      <form id="product-form">
-        <input type="hidden" id="product-edit-id">
-        <div class="form-grid">
-          <div class="input-group full-width">
-            <label for="product-name">Product Name *</label>
-            <input type="text" id="product-name" placeholder="e.g. Toor Dal" required>
-          </div>
-          <div class="input-group">
-            <label for="product-category">Category *</label>
-            <input type="text" id="product-category" placeholder="e.g. Pulses" required>
-          </div>
-          <div class="input-group">
-            <label for="product-price">Price (₹) *</label>
-            <input type="number" id="product-price" placeholder="e.g. 120" min="0" step="0.5" required>
-          </div>
-          <div class="input-group">
-            <label for="product-unit">Unit *</label>
-            <input type="text" id="product-unit" placeholder="e.g. 1 kg" required>
-          </div>
-          <div class="input-group">
-            <label for="product-instock">In Stock</label>
-            <label class="toggle-switch">
-              <input type="checkbox" id="product-instock" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
+      <div class="modal-search">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="catalog-search" placeholder="Search catalog...">
         </div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-ghost modal-close" data-modal="product-modal">Cancel</button>
-          <button type="submit" class="btn btn-primary">
-            <span id="product-submit-text">Add Product</span>
-            <span class="btn-loader hidden"></span>
-          </button>
-        </div>
-      </form>
+        <div id="catalog-cat-tabs" class="cat-tabs scrollable"></div>
+      </div>
+      <div id="catalog-items" class="modal-body catalog-grid"></div>
     </div>
   </div>
 
-  <!-- ═══════════════════ DELETE CONFIRM MODAL ═══════════════════ -->
-  <div id="delete-modal" class="modal-overlay hidden">
+  <!-- Add Custom Item Modal -->
+  <div id="custom-modal" class="modal-overlay hidden">
     <div class="modal glass-card modal-sm">
       <div class="modal-header">
-        <h2>Delete Product?</h2>
+        <h2>Add Custom Item</h2>
+        <button class="modal-close" data-modal="custom-modal">✕</button>
       </div>
-      <p class="text-muted" style="margin-bottom:1.5rem">This action cannot be undone. The product <strong id="delete-product-name"></strong> will be permanently removed.</p>
-      <div class="modal-actions">
-        <button class="btn btn-ghost modal-close" data-modal="delete-modal">Cancel</button>
-        <button id="confirm-delete-btn" class="btn btn-danger">
-          <span>Delete</span>
-          <span class="btn-loader hidden"></span>
-        </button>
+      <div class="modal-body">
+        <form id="custom-item-form">
+          <div class="input-group">
+            <label>Item Name</label>
+            <input type="text" id="custom-name" required>
+          </div>
+          <div class="input-group">
+            <label>Category</label>
+            <select id="custom-category" required>
+              <option value="" disabled selected>Select Category</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>Price (₹)</label>
+            <input type="number" id="custom-price" min="0" step="1" required>
+          </div>
+          <div class="input-group">
+            <label>Unit</label>
+            <input type="text" id="custom-unit" placeholder="e.g. 1kg, 500ml" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Add Item</button>
+        </form>
       </div>
     </div>
   </div>
+
+  <!-- Request Accept Price Modal -->
+  <div id="request-price-modal" class="modal-overlay hidden">
+    <div class="modal glass-card modal-sm">
+      <div class="modal-header">
+        <h2>Set Price for Item</h2>
+        <button class="modal-close" data-modal="request-price-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="req-item-name" class="req-item-label"></p>
+        <div class="input-group">
+          <label>Price (₹)</label>
+          <input type="number" id="req-price-input" min="0" step="1" required>
+        </div>
+        <button id="req-confirm-btn" class="btn btn-primary btn-block">✅ Add to Inventory</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MOBILE SIDEBAR OVERLAY -->
+  <div id="sidebar-overlay" class="sidebar-overlay hidden"></div>
 
   <script src="app.js"></script>
 </body>

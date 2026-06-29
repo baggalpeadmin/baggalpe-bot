@@ -33,10 +33,10 @@ const FLOWS = {
   GROCERY: {
     name: 'grocery',
     states: {
-      ASK_ITEMS: {
+      ASK_LOCATION: {
         step: 0,
-        prompt: 'askWhatYouNeed',
-        expects: 'items_list'
+        prompt: 'askLocation',
+        expects: 'items_list'  // Also accepts location messages
       },
       SEARCH_CATALOG: {
         step: 1,
@@ -47,22 +47,27 @@ const FLOWS = {
         prompt: 'showMerchants',
         expects: 'merchant_selection'
       },
-      SHOW_PRODUCTS: {
+      SHOW_CATEGORIES: {
         step: 3,
-        prompt: 'showProducts',
-        expects: 'product_confirmation'
+        prompt: 'showCategories',
+        expects: 'category_selection'
       },
-      ORDER_SUMMARY: {
+      SHOW_ITEMS: {
         step: 4,
+        prompt: 'showCategoryItems',
+        expects: 'item_selection'
+      },
+      PAYMENT: {
+        step: 5,
         prompt: 'orderSummary',
         expects: 'payment_confirmation'
       },
       PROCESS_PAYMENT: {
-        step: 5,
+        step: 6,
         action: 'processPayment'
       },
       COMPLETE: {
-        step: 6,
+        step: 7,
         prompt: 'paymentSuccess'
       }
     }
