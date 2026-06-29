@@ -162,10 +162,34 @@ async function markAsRead(messageId) {
   }
 }
 
+/**
+ * Send a location message with a map pin.
+ * @param {string} to      — Recipient phone number
+ * @param {number} lat     — Latitude
+ * @param {number} lng     — Longitude
+ * @param {string} name    — Location name (e.g., shop name)
+ * @param {string} address — Full address text
+ * @returns {Promise<object|null>}
+ */
+async function sendLocation(to, lat, lng, name, address) {
+  return sendRequest({
+    messaging_product: 'whatsapp',
+    to: formatPhone(to),
+    type: 'location',
+    location: {
+      latitude: lat,
+      longitude: lng,
+      name: name || 'Location',
+      address: address || '',
+    },
+  });
+}
+
 module.exports = {
   sendText,
   sendButtons,
   sendList,
+  sendLocation,
   markAsRead,
   formatPhone,
 };

@@ -16,15 +16,57 @@ function writeCollection(name, data) {
   fs.writeFileSync(path.join(DATA_DIR, `${name}.json`), JSON.stringify(data, null, 2), 'utf-8');
 }
 
-// ── Merchants ───────────────────────────────────────────────
+// ── Merchants (with real Jaipur coordinates & delivery radius) ──
 
 const merchants = [
-  { id: 1, name: 'Ramu Kirana Store', type: 'kirana', owner_name: 'Ramu Sharma', phone: '919876543210', address: 'Shop 12, Malviya Nagar Main Road', city: 'Jaipur', pincode: '302017', lat: 26.8667, lng: 75.8000, radius_km: 2, rating: 4.5, is_active: 1, created_at: new Date().toISOString() },
-  { id: 2, name: 'Shyam General Store', type: 'kirana', owner_name: 'Shyam Gupta', phone: '919876543211', address: '45, Vaishali Nagar Circle', city: 'Jaipur', pincode: '302021', lat: 26.9120, lng: 75.7390, radius_km: 2, rating: 4.3, is_active: 1, created_at: new Date().toISOString() },
-  { id: 3, name: 'Geeta Sabzi Mandi', type: 'sabzi', owner_name: 'Geeta Devi', phone: '919876543212', address: 'Tonk Road Sabzi Market', city: 'Jaipur', pincode: '302015', lat: 26.8800, lng: 75.7900, radius_km: 3, rating: 4.6, is_active: 1, created_at: new Date().toISOString() },
-  { id: 4, name: 'MedPlus Pharmacy', type: 'pharmacy', owner_name: 'Dr. Anil Joshi', phone: '919876543213', address: 'C-Scheme, MI Road', city: 'Jaipur', pincode: '302001', lat: 26.9180, lng: 75.8060, radius_km: 5, rating: 4.4, is_active: 1, created_at: new Date().toISOString() },
-  { id: 5, name: 'Rajesh Kumar (Plumber)', type: 'plumber', owner_name: 'Rajesh Kumar', phone: '919876543214', address: 'Mansarovar Sector 7', city: 'Jaipur', pincode: '302020', lat: 26.8600, lng: 75.7650, radius_km: 10, rating: 4.2, is_active: 1, created_at: new Date().toISOString() },
-  { id: 6, name: 'Amit Singh (Electrician)', type: 'electrician', owner_name: 'Amit Singh', phone: '919876543215', address: 'Jagatpura Main Road', city: 'Jaipur', pincode: '302025', lat: 26.8350, lng: 75.8450, radius_km: 10, rating: 4.3, is_active: 1, created_at: new Date().toISOString() },
+  {
+    id: 1, name: 'Ramu Kirana Store', type: 'kirana',
+    owner_name: 'Ramu Sharma', phone: '919876543210',
+    address: 'Shop 12, Malviya Nagar Main Road', city: 'Jaipur', pincode: '302017',
+    lat: 26.8546, lng: 75.8036, delivery_radius_km: 2,
+    pin: '1234', rating: 4.5, is_active: 1,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 2, name: 'Shyam General Store', type: 'kirana',
+    owner_name: 'Shyam Gupta', phone: '919876543211',
+    address: '45, Vaishali Nagar Circle', city: 'Jaipur', pincode: '302021',
+    lat: 26.9124, lng: 75.7385, delivery_radius_km: 2,
+    pin: '1234', rating: 4.3, is_active: 1,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 3, name: 'Geeta Sabzi Mandi', type: 'sabzi',
+    owner_name: 'Geeta Devi', phone: '919876543212',
+    address: 'Tonk Road Sabzi Market', city: 'Jaipur', pincode: '302015',
+    lat: 26.8765, lng: 75.7872, delivery_radius_km: 3,
+    pin: '1234', rating: 4.6, is_active: 1,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 4, name: 'MedPlus Pharmacy', type: 'pharmacy',
+    owner_name: 'Dr. Anil Joshi', phone: '919876543213',
+    address: 'C-Scheme, MI Road', city: 'Jaipur', pincode: '302001',
+    lat: 26.9157, lng: 75.8057, delivery_radius_km: 5,
+    pin: '1234', rating: 4.4, is_active: 1,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 5, name: 'Rajesh Kumar (Plumber)', type: 'plumber',
+    owner_name: 'Rajesh Kumar', phone: '919876543214',
+    address: 'Mansarovar Sector 7', city: 'Jaipur', pincode: '302020',
+    lat: 26.8592, lng: 75.7632, delivery_radius_km: 10,
+    pin: '1234', rating: 4.2, is_active: 1,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 6, name: 'Amit Singh (Electrician)', type: 'electrician',
+    owner_name: 'Amit Singh', phone: '919876543215',
+    address: 'Jagatpura Main Road', city: 'Jaipur', pincode: '302025',
+    lat: 26.8343, lng: 75.8447, delivery_radius_km: 10,
+    pin: '1234', rating: 4.3, is_active: 1,
+    created_at: new Date().toISOString()
+  },
 ];
 
 // ── Products ────────────────────────────────────────────────

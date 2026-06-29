@@ -1,16 +1,17 @@
 /**
  * @file services/catalog.js
  * @description Catalog service — merchant discovery and product search.
+ * Supports both city-based and GPS-based merchant discovery.
  */
 
 'use strict';
 
 const {
-  initDB,
   getMerchantsByCity,
   getProducts,
   searchProducts: dbSearchProducts,
   getMerchant,
+  findMerchantsByLocation,
 } = require('../db/schema');
 
 /**
@@ -30,6 +31,29 @@ function findNearbyMerchants(city, businessType) {
     return merchants;
   } catch (err) {
     console.error('[Catalog] findNearbyMerchants error:', err.message);
+    return [];
+  }
+}
+
+/**
+ * Find merchants near a GPS coordinate.
+ * Uses each merchant's own delivery_radius_km to determine if user is within range.
+ *
+ * @param {number}  lat           — User's latitude
+ * @param {number}  lng           — User's longitude
+ * @param {string}  [businessType] — Optional type filter
+ * @returns {object[]} Merchants sorted by distance, each with distance_km field
+ */
+function findMerchantsByGPS(lat, lng, businessType) {
+  try {
+    const merchants = findMerchantsByLocation(lat, lng, businessType);
+    console.log(
+      `[Catalog] Found ${merchants.length} merchants near (${lat}, ${lng})` +
+        (businessType ? ` (type: ${businessType})` : '')
+    );
+    return merchants;
+  } catch (err) {
+    console.error('[Catalog] findMerchantsByGPS error:', err.message);
     return [];
   }
 }
@@ -72,48 +96,45 @@ function getFullCatalog(merchantId) {
 }
 
 /**
- * Search for a product across ALL merchants in a city and return results
+ * Search for a product across ALL nearby merchants and return results
  * sorted by price (lowest first). Useful for price comparison.
  *
- * @param {string} city        — City name
+ * @param {number} lat — User's latitude
+ * @param {number} lng — User's longitude
  * @param {string} productName — Product to search for
  * @returns {Array<{merchant: object, product: object}>} Sorted by price ascending
  */
-function findBestPrice(city, productName) {
+function findBestPrice(lat, lng, productName) {
   try {
-    const db = initDB();
+    const nearbyMerchants = findMerchantsByLocation(lat, lng);
+    const results = [];
 
-    const rows = db
-      .prepare(
-        `SELECT p.*, m.name AS merchant_name, m.id AS merchant_id, m.address, m.rating
-         FROM products p
-         JOIN merchants m ON p.merchant_id = m.id
-         WHERE LOWER(m.city) = LOWER(?)
-           AND LOWER(p.name) LIKE LOWER(?)
-           AND p.in_stock = 1
-           AND m.is_active = 1
-         ORDER BY p.price ASC`
-      )
-      .all(city, `%${productName}%`);
+    for (const merchant of nearbyMerchants) {
+      const products = dbSearchProducts(merchant.id, productName);
+      for (const product of products) {
+        results.push({
+          merchant: {
+            id: merchant.id,
+            name: merchant.name,
+            address: merchant.address,
+            rating: merchant.rating,
+            distance_km: merchant.distance_km,
+          },
+          product: {
+            id: product.id,
+            name: product.name,
+            category: product.category,
+            price: product.price,
+            unit: product.unit,
+          },
+        });
+      }
+    }
 
-    const results = rows.map((row) => ({
-      merchant: {
-        id: row.merchant_id,
-        name: row.merchant_name,
-        address: row.address,
-        rating: row.rating,
-      },
-      product: {
-        id: row.id,
-        name: row.name,
-        category: row.category,
-        price: row.price,
-        unit: row.unit,
-      },
-    }));
+    results.sort((a, b) => a.product.price - b.product.price);
 
     console.log(
-      `[Catalog] Best price for "${productName}" in ${city}: ${results.length} options`
+      `[Catalog] Best price for "${productName}" near (${lat},${lng}): ${results.length} options`
     );
     return results;
   } catch (err) {
@@ -124,6 +145,7 @@ function findBestPrice(city, productName) {
 
 module.exports = {
   findNearbyMerchants,
+  findMerchantsByGPS,
   searchProducts,
   getFullCatalog,
   findBestPrice,

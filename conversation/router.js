@@ -139,6 +139,26 @@ async function sendMessage(to, text) {
 }
 
 /**
+ * Sends location map pins for merchants (max 3).
+ * @param {string} to - Recipient phone
+ * @param {Array} merchants - Merchants with lat/lng
+ */
+async function sendLocationPins(to, merchants) {
+  if (!whatsapp || typeof whatsapp.sendLocation !== 'function') return;
+  const toSend = merchants.slice(0, 3); // Max 3 pins
+  for (const m of toSend) {
+    if (m.lat && m.lng) {
+      try {
+        const dist = m.distance_km ? ` (${Math.round(m.distance_km * 1000)}m)` : '';
+        await whatsapp.sendLocation(to, m.lat, m.lng, m.name + dist, m.address || '');
+      } catch (err) {
+        console.error('[Router] Failed to send location pin:', err.message);
+      }
+    }
+  }
+}
+
+/**
  * Marks a message as read via WhatsApp API.
  *
  * @param {string} messageId - WhatsApp message ID
@@ -392,14 +412,16 @@ async function actionSearchCatalog(from, context) {
       'grocery': 'kirana', 'kirana': 'kirana', 'sabzi': 'sabzi',
       'vegetables': 'sabzi', 'pharmacy': 'pharmacy', 'medical': 'pharmacy'
     };
-    const merchantType = categoryMap[context.category] || null; // null = all types
+    const merchantType = categoryMap[context.category] || null;
 
-    // Find nearby merchants
-    if (typeof catalog.findNearbyMerchants === 'function') {
-      merchants = catalog.findNearbyMerchants(
-        context.userCity || 'Jaipur',
-        merchantType
-      );
+    // GPS-based search (preferred)
+    if (context.userLat && context.userLng && typeof catalog.findMerchantsByGPS === 'function') {
+      merchants = catalog.findMerchantsByGPS(context.userLat, context.userLng, merchantType);
+      console.log(`[Router] GPS search found ${merchants.length} merchants`);
+    }
+    // Fallback to city-based search
+    else if (typeof catalog.findNearbyMerchants === 'function') {
+      merchants = catalog.findNearbyMerchants(context.userCity || 'Jaipur', merchantType);
     }
 
     // Search for specific products if items were provided and we have a merchant
@@ -407,15 +429,6 @@ async function actionSearchCatalog(from, context) {
       const firstItem = context.items[0];
       products = catalog.searchProducts(merchants[0].id, firstItem.name || firstItem);
     }
-  }
-
-  // If no catalog service, use demo data as placeholder
-  if (merchants.length === 0) {
-    merchants = [
-      { id: 1, name: 'Ramu Kirana Store', distance: '500m', rating: 4.5, speciality: 'Grocery & Daily Needs' },
-      { id: 2, name: 'Shyam General Store', distance: '800m', rating: 4.2, speciality: 'Grocery & Household' }
-    ];
-    console.log('[Router] Using demo merchant data');
   }
 
   return {
@@ -512,15 +525,17 @@ async function actionSearchProviders(from, context) {
  * Main entry point — handles an incoming WhatsApp message.
  * Routes it through intent detection or continues an active flow.
  *
- * @param {string} from - Sender's phone number (e.g., "919876543210")
- * @param {string} messageText - The message body text
- * @param {string} messageId - WhatsApp message ID (for read receipts)
+ * @param {string} from - Sender's phone number
+ * @param {string} messageText - The message body text (null for location messages)
+ * @param {string} messageId - WhatsApp message ID
+ * @param {Object} [locationData] - { latitude, longitude } if user shared location
  * @returns {Promise<void>}
  */
-async function handleMessage(from, messageText, messageId) {
+async function handleMessage(from, messageText, messageId, locationData) {
   console.log(`\n[Router] ════════════════════════════════════════`);
   console.log(`[Router] Message from: ${from}`);
-  console.log(`[Router] Text: "${messageText}"`);
+  console.log(`[Router] Text: "${messageText || '(location)'}"`);
+  if (locationData) console.log(`[Router] Location: ${locationData.latitude}, ${locationData.longitude}`);
   console.log(`[Router] MessageID: ${messageId}`);
   console.log(`[Router] ════════════════════════════════════════\n`);
 
@@ -528,16 +543,20 @@ async function handleMessage(from, messageText, messageId) {
     // Step 1: Mark message as read
     await markAsRead(messageId);
 
-    // Step 2: Get current conversation state
+    // Step 2: If user shared location, save it and handle location flow
+    if (locationData) {
+      await handleLocationMessage(from, locationData);
+      return;
+    }
+
+    // Step 3: Get current conversation state
     const conversation = getConversation(from);
     console.log('[Router] Current conversation:', conversation ? `flow=${conversation.flow}, step=${conversation.step}` : 'none');
 
-    // Step 3: Route based on conversation state
+    // Step 4: Route based on conversation state
     if (!conversation || conversation.flow === null || conversation.flow === 'complete') {
-      // ── No active conversation → Detect intent ──
       await handleNewConversation(from, messageText);
     } else {
-      // ── Active conversation → Continue flow ──
       await handleActiveConversation(from, messageText, conversation);
     }
 
@@ -545,6 +564,73 @@ async function handleMessage(from, messageText, messageId) {
     console.error('[Router] ❌ Error handling message:', err);
     await sendMessage(from, templates.error());
   }
+}
+
+// ── Location Message Handler ────────────────────────────────
+
+/**
+ * Handles when a user shares their GPS location.
+ * Saves location, finds nearby merchants, and shows them.
+ */
+async function handleLocationMessage(from, locationData) {
+  console.log('[Router] Handling location message');
+  const { latitude, longitude } = locationData;
+
+  // Save user location
+  if (schema && typeof schema.updateUserLocation === 'function') {
+    schema.updateUserLocation(from, latitude, longitude);
+    console.log(`[Router] Saved user location: ${latitude}, ${longitude}`);
+  }
+
+  // Check if there's an active conversation waiting for location
+  const conversation = getConversation(from);
+  let context = {};
+  if (conversation && conversation.context) {
+    try {
+      context = typeof conversation.context === 'string'
+        ? JSON.parse(conversation.context)
+        : (conversation.context || {});
+    } catch (e) { context = {}; }
+  }
+
+  // Save location in context
+  context.userLat = latitude;
+  context.userLng = longitude;
+
+  // Find nearby merchants using GPS
+  let merchants = [];
+  const merchantType = context.category ? {
+    'grocery': 'kirana', 'kirana': 'kirana', 'sabzi': 'sabzi',
+    'vegetables': 'sabzi', 'pharmacy': 'pharmacy'
+  }[context.category] || null : null;
+
+  if (catalog && typeof catalog.findMerchantsByGPS === 'function') {
+    merchants = catalog.findMerchantsByGPS(latitude, longitude, merchantType);
+  }
+
+  if (merchants.length === 0) {
+    await sendMessage(from, `😔 Aapke paas koi dukaan nahi mili (1km radius mein)\n\nHum jaldi aapke area mein bhi aayenge! 🚀`);
+    clearConversation(from);
+    return;
+  }
+
+  // Show merchants with distances
+  context.merchants = merchants;
+  const merchantList = merchants.map((m, i) => {
+    const distText = m.distance_km < 1
+      ? `${Math.round(m.distance_km * 1000)}m`
+      : `${m.distance_km.toFixed(1)}km`;
+    return `${i + 1}. *${m.name}*\n   📍 ${distText} door | ⭐ ${m.rating || 'New'}\n   📫 ${m.address || ''}`;
+  }).join('\n\n');
+
+  await sendMessage(from, `📍 *Aapke paas ki dukaanein:*\n\n${merchantList}\n\n👆 Number bhejo (1, 2, 3...) ya dukaan ka naam likhein`);
+
+  // Send location pins for top 3 merchants
+  await sendLocationPins(from, merchants);
+
+  // Save conversation at merchant selection step
+  const flowName = context.serviceType ? 'service' : 'grocery';
+  saveConversation(from, flowName, 2, context);
 }
 
 // ── New Conversation Handler ────────────────────────────────
@@ -561,6 +647,15 @@ async function handleNewConversation(from, messageText) {
 
   const { intent, entities } = await detectIntent(messageText);
   console.log(`[Router] Detected intent: "${intent}"`, entities);
+
+  // Check if user has a saved location
+  let userLocation = null;
+  if (schema && typeof schema.getUser === 'function') {
+    const user = schema.getUser(from);
+    if (user && user.lat && user.lng) {
+      userLocation = { lat: user.lat, lng: user.lng };
+    }
+  }
 
   switch (intent) {
 
@@ -585,18 +680,25 @@ async function handleNewConversation(from, messageText) {
         category: 'grocery'
       };
 
-      // Skip ASK_ITEMS since user already told us what they want
-      // Jump to SEARCH_CATALOG (step 1)
-      await sendMessage(from, templates.searching('best stores'));
-
-      // Execute search
-      const updatedContext = await actionSearchCatalog(from, context);
-
-      // Show merchants (step 2)
-      await sendMessage(from, templates.showMerchants(updatedContext.merchants));
-
-      // Save at step 2 waiting for merchant selection
-      saveConversation(from, 'grocery', 2, updatedContext);
+      // If user has saved location, search directly
+      if (userLocation) {
+        context.userLat = userLocation.lat;
+        context.userLng = userLocation.lng;
+        await sendMessage(from, templates.searching('nearby stores'));
+        const updatedContext = await actionSearchCatalog(from, context);
+        if (updatedContext.merchants.length > 0) {
+          await sendMessage(from, templates.showMerchants(updatedContext.merchants));
+          await sendLocationPins(from, updatedContext.merchants);
+          saveConversation(from, 'grocery', 2, updatedContext);
+        } else {
+          await sendMessage(from, `😔 Aapke paas koi dukaan nahi mili\n\nApna location share karein taaki hum dobara dhundhein 📍`);
+          saveConversation(from, 'grocery', 0, context);
+        }
+      } else {
+        // Ask for location first
+        await sendMessage(from, `📍 *Apna location share karein!*\n\nHum aapke paas ki dukaanein dhundhenge (1km radius mein)\n\n👉 WhatsApp mein 📎 (attach) button dabayein\n👉 Phir *"Location"* select karein\n👉 *"Send your current location"* tap karein\n\n_Isse hum aapke sabse nazdeeki store dikhayenge_ 🏪`);
+        saveConversation(from, 'grocery', 0, context);
+      }
       break;
     }
 

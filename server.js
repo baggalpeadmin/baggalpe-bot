@@ -205,29 +205,41 @@ app.post('/webhook', (req, res) => {
     if (!messages || !messages.length) return;
 
     const message = messages[0];
+    const from = message.from;
+    const messageId = message.id;
+    if (!from) return;
 
-    // Only process text messages — ignore status updates, read receipts, etc.
-    if (message.type !== 'text') {
-      console.log(`[Webhook] Ignoring non-text message type: ${message.type}`);
+    // Handle TEXT messages
+    if (message.type === 'text') {
+      const text = message.text?.body;
+      if (!text) return;
+      console.log(`[Webhook] Text from ${from}: "${text}"`);
+      handleMessage(from, text, messageId).catch((err) => {
+        console.error(`[Webhook] Error handling message from ${from}:`, err);
+      });
       return;
     }
 
-    const from = message.from;        // sender phone number
-    const text = message.text?.body;   // message content
-    const messageId = message.id;      // unique message id
+    // Handle LOCATION messages
+    if (message.type === 'location') {
+      const loc = message.location;
+      if (!loc || !loc.latitude || !loc.longitude) return;
+      console.log(`[Webhook] Location from ${from}: ${loc.latitude}, ${loc.longitude}`);
+      handleMessage(from, null, messageId, {
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+      }).catch((err) => {
+        console.error(`[Webhook] Error handling location from ${from}:`, err);
+      });
+      return;
+    }
 
-    if (!from || !text) return;
-
-    console.log(`[Webhook] Message from ${from}: "${text}"`);
-
-    // Fire-and-forget — errors are caught inside handleMessage
-    handleMessage(from, text, messageId).catch((err) => {
-      console.error(`[Webhook] Error handling message from ${from}:`, err);
-    });
+    console.log(`[Webhook] Ignoring message type: ${message.type}`);
   } catch (err) {
     console.error('[Webhook] Payload parse error:', err);
   }
 });
+
 
 // ---------------------------------------------------------------------------
 // POST /api/test — Local Test Endpoint (NO WhatsApp needed)
@@ -304,6 +316,131 @@ app.get('/health', (_req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Dashboard Static Files
+// ---------------------------------------------------------------------------
+app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
+
+// ---------------------------------------------------------------------------
+// Dashboard API — Merchant Management
+// ---------------------------------------------------------------------------
+
+const {
+  getMerchantByPhone, createMerchant, updateMerchant, getMerchant: getMerchantById,
+  getAllProducts: dbGetAllProducts, addProduct, updateProduct, deleteProduct,
+  getOrdersByMerchant, updateOrderStatus: dbUpdateOrderStatus, getAllMerchants,
+} = require('./db/schema');
+
+/** Middleware: extract merchant ID from header */
+function authMerchant(req, res, next) {
+  const merchantId = parseInt(req.headers['x-merchant-id'], 10);
+  if (!merchantId) return res.status(401).json({ error: 'Not authenticated' });
+  req.merchantId = merchantId;
+  next();
+}
+
+// Login
+app.post('/api/merchant/login', (req, res) => {
+  try {
+    const { phone, pin } = req.body;
+    if (!phone || !pin) return res.status(400).json({ error: 'Phone and PIN required' });
+
+    const merchant = getMerchantByPhone(phone);
+    if (!merchant) return res.status(404).json({ error: 'Merchant not found' });
+    if (merchant.pin !== String(pin)) return res.status(401).json({ error: 'Wrong PIN' });
+
+    res.json({ success: true, merchant });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Register new merchant
+app.post('/api/merchant/register', (req, res) => {
+  try {
+    const { name, owner_name, phone, address, city, pincode, type, pin, lat, lng, delivery_radius_km } = req.body;
+    if (!name || !phone || !pin) return res.status(400).json({ error: 'Name, phone, and PIN required' });
+
+    // Check if phone already exists
+    const existing = getMerchantByPhone(phone);
+    if (existing) return res.status(409).json({ error: 'Phone number already registered' });
+
+    const merchant = createMerchant({
+      name, owner_name: owner_name || name, phone,
+      address: address || '', city: city || '', pincode: pincode || '',
+      type: type || 'kirana', pin: String(pin),
+      lat: lat ? parseFloat(lat) : null,
+      lng: lng ? parseFloat(lng) : null,
+      delivery_radius_km: delivery_radius_km ? parseFloat(delivery_radius_km) : 1,
+    });
+
+    res.json({ success: true, merchant });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get profile
+app.get('/api/merchant/profile', authMerchant, (req, res) => {
+  const merchant = getMerchantById(req.merchantId);
+  if (!merchant) return res.status(404).json({ error: 'Not found' });
+  res.json(merchant);
+});
+
+// Update profile
+app.put('/api/merchant/profile', authMerchant, (req, res) => {
+  const updated = updateMerchant(req.merchantId, req.body);
+  if (!updated) return res.status(404).json({ error: 'Not found' });
+  res.json({ success: true, merchant: updated });
+});
+
+// Get products
+app.get('/api/merchant/products', authMerchant, (req, res) => {
+  const products = dbGetAllProducts(req.merchantId);
+  res.json(products);
+});
+
+// Add product
+app.post('/api/merchant/products', authMerchant, (req, res) => {
+  const product = addProduct(req.merchantId, req.body);
+  res.json({ success: true, product });
+});
+
+// Update product
+app.put('/api/merchant/products/:id', authMerchant, (req, res) => {
+  const updated = updateProduct(parseInt(req.params.id, 10), req.body);
+  if (!updated) return res.status(404).json({ error: 'Product not found' });
+  res.json({ success: true, product: updated });
+});
+
+// Delete product
+app.delete('/api/merchant/products/:id', authMerchant, (req, res) => {
+  const deleted = deleteProduct(parseInt(req.params.id, 10));
+  if (!deleted) return res.status(404).json({ error: 'Product not found' });
+  res.json({ success: true });
+});
+
+// Get orders
+app.get('/api/merchant/orders', authMerchant, (req, res) => {
+  const orders = getOrdersByMerchant(req.merchantId);
+  res.json(orders);
+});
+
+// Update order status
+app.put('/api/merchant/orders/:id/status', authMerchant, (req, res) => {
+  const updated = dbUpdateOrderStatus(req.params.id, req.body.status);
+  if (!updated) return res.status(404).json({ error: 'Order not found' });
+  res.json({ success: true, order: updated });
+});
+
+// Get all merchants (public — for map/listing)
+app.get('/api/merchants', (_req, res) => {
+  const merchants = getAllMerchants().filter(m => m.is_active !== 0);
+  // Strip sensitive fields
+  const safe = merchants.map(({ pin, ...rest }) => rest);
+  res.json(safe);
+});
+
+// ---------------------------------------------------------------------------
 // Startup
 // ---------------------------------------------------------------------------
 
@@ -314,6 +451,7 @@ initDB(); // Create / migrate database tables
 app.listen(PORT, () => {
   console.log(`\n🛒 Baggalpe Bot Server running on port ${PORT}`);
   console.log(`📱 WhatsApp Webhook: http://localhost:${PORT}/webhook`);
+  console.log(`🏪 Dashboard:       http://localhost:${PORT}/dashboard/`);
   console.log(`🧪 Test Simulator:  http://localhost:${PORT}/test/simulator.html`);
   console.log(`❤️  Health Check:    http://localhost:${PORT}/health\n`);
 });

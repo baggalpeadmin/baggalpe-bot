@@ -114,12 +114,20 @@ module.exports = {
       return `Koi merchant nahi mila aapke paas 😔 Kuch aur try karein?`;
     }
 
-    let msg = `Mil gaya! Best options: 🏪\n\n`;
+    let msg = `📍 *Aapke paas ki dukaanein:* 🏪\n\n`;
 
     merchants.forEach((m, i) => {
       const num = i + 1;
       const rating = m.rating ? ` | ${formatRating(m.rating)}` : '';
-      const distance = m.distance ? ` (${m.distance} door)` : '';
+      // Show distance from GPS if available
+      let distance = '';
+      if (m.distance_km !== undefined) {
+        distance = m.distance_km < 1
+          ? ` (${Math.round(m.distance_km * 1000)}m door)`
+          : ` (${m.distance_km.toFixed(1)}km door)`;
+      } else if (m.distance) {
+        distance = ` (${m.distance} door)`;
+      }
       const speciality = m.speciality ? `\n   📋 ${m.speciality}` : '';
 
       msg += `*${num}. 🏪 ${m.name}*${distance}${rating}${speciality}\n\n`;
